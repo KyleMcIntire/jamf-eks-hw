@@ -31,7 +31,7 @@ variable "environment" {
 variable "min_size" {
   description = "Minimum number of nodes"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "max_size" {

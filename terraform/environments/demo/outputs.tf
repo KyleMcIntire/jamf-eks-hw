@@ -33,3 +33,8 @@ output "vpc_id" {
   description = "The VPC ID"
   value       = module.vpc.vpc_id
 }
+
+output "aws_load_balancer_controller_policy_arn" {
+  description = "ARN of the AWS Load Balancer Controller IAM policy"
+  value       = aws_iam_policy.aws_load_balancer_controller.arn
+}
