@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wordpress.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "wordpress.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "wordpress.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wordpress.labels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: wordpress
+        image: "{{ .Values.wordpress.image.repository }}:{{ .Values.wordpress.image.tag }}"
+        imagePullPolicy: {{ .Values.wordpress.image.pullPolicy }}
+        env:
+        - name: WORDPRESS_DB_HOST
+          value: {{ include "wordpress.fullname" . }}-mysql:3306
+        - name: WORDPRESS_DB_NAME
+          value: {{ .Values.mysql.database | quote }}
+        - name: WORDPRESS_DB_USER
+          value: {{ .Values.mysql.user | quote }}
+        - name: WORDPRESS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.existingSecret | default (printf "%s-secrets" (include "wordpress.fullname" .)) }}
+              key: mysql-password
+        - name: WORDPRESS_USERNAME
+          value: {{ .Values.wordpress.username | quote }}
+        - name: WORDPRESS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.existingSecret | default (printf "%s-secrets" (include "wordpress.fullname" .)) }}
+              key: wordpress-password
+        - name: WORDPRESS_EMAIL
+          value: {{ .Values.wordpress.email | quote }}
+        - name: WORDPRESS_FIRST_NAME
+          value: {{ .Values.wordpress.firstName | quote }}
+        - name: WORDPRESS_LAST_NAME
+          value: {{ .Values.wordpress.lastName | quote }}
+        - name: WORDPRESS_BLOG_NAME
+          value: {{ .Values.wordpress.blogName | quote }}
+        - name: WORDPRESS_DEBUG
+          value: "1"
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 443
+          name: https
+        volumeMounts:
+        - name: wordpress-persistent-storage
+          mountPath: /var/www/html
+        resources:
+          {{- toYaml .Values.wordpress.resources | nindent 10 }}
+        {{- if .Values.wordpress.livenessProbe.enabled }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.wordpress.livenessProbe.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.wordpress.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.wordpress.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.wordpress.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.wordpress.livenessProbe.failureThreshold }}
+        {{- end }}
+        {{- if .Values.wordpress.readinessProbe.enabled }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.wordpress.readinessProbe.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.wordpress.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.wordpress.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.wordpress.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.wordpress.readinessProbe.failureThreshold }}
+        {{- end }}
+      volumes:
+      - name: wordpress-persistent-storage
+        persistentVolumeClaim:
+          claimName: {{ include "wordpress.fullname" . }}-pvc

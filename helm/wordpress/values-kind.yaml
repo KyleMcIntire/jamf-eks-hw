@@ -1,0 +1,67 @@
+# Kind-specific values for local testing
+# This overrides the main values.yaml for kind deployment
+
+# Use default storage class for kind
+wordpress:
+  persistence:
+    storageClass: "standard" # kind's default storage class
+    size: 5Gi # Smaller for local testing
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+  livenessProbe:
+    enabled: false
+  readinessProbe:
+    enabled: false
+
+additionalLabels:
+  environment: demo
+  team: platform
+  app: wordpress
+  version: "1.0"
+
+mysql:
+  image:
+    repository: mariadb
+    tag: "10.11"
+    pullPolicy: IfNotPresent
+  persistence:
+    enabled: true
+    storageClass: "standard" # kind's default storage class
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi # Smaller for local testing
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+
+# Use NodePort for easier local access
+service:
+  type: NodePort
+  port: 80
+
+# Single replica for testing
+replicaCount: 1
+
+# Disable HPA for local testing
+autoscaling:
+  enabled: false
+
+# Reduce resource quotas for kind
+resourceQuota:
+  requests:
+    cpu: "2"
+    memory: 2Gi
+  limits:
+    cpu: "4"
+    memory: 4Gi
+  persistentvolumeclaims: "5"
+  pods: "10"

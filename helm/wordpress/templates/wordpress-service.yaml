@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wordpress.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "wordpress.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - port: {{ .Values.service.port }}
+    targetPort: http
+    protocol: TCP
+    name: http
+  {{- if .Values.service.httpsPort }}
+  - port: {{ .Values.service.httpsPort }}
+    targetPort: https
+    protocol: TCP
+    name: https
+  {{- end }}
+  selector:
+    {{- include "wordpress.selectorLabels" . | nindent 4 }}

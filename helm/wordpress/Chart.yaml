@@ -1,0 +1,20 @@
+apiVersion: v2
+name: wordpress
+description: A custom Helm chart for WordPress deployment with MySQL
+type: application
+version: 0.1.0
+appVersion: "6.4.2"
+keywords:
+  - wordpress
+  - cms
+  - blog
+  - http
+  - web
+  - application
+  - php
+home: https://wordpress.org/
+sources:
+  - https://github.com/WordPress/WordPress
+maintainers:
+  - name: Kyle McIntire
+    email: kylemcintire@gmail.com

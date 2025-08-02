@@ -3,7 +3,8 @@
 # This script installs the AWS Load Balancer Controller for EKS
 #
 # Usage: ./install-alb-controller.sh
-# Cluster name is automatically detected from kubectl context
+# Cluster name, VPC ID, and AWS Region is automatically detected
+# Service Account Role Arn 
 
 set -e
 

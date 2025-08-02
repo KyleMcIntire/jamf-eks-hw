@@ -113,6 +113,10 @@ module "eks" {
         }
       })
     }
+    aws-ebs-csi-driver = {
+      most_recent = true
+      service_account_role_arn = module.ebs_csi_irsa_role.iam_role_arn
+    }
   }
 
   # Managed node groups
@@ -190,6 +194,25 @@ module "aws_load_balancer_controller_irsa_role" {
     ex = {
       provider_arn               = module.eks.oidc_provider_arn
       namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
+    }
+  }
+
+  tags = local.common_tags
+}
+
+# EBS CSI Driver Service Account
+module "ebs_csi_irsa_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0"
+
+  role_name = "AmazonEKS_EBS_CSI_DriverRole"
+
+  attach_ebs_csi_policy = true
+
+  oidc_providers = {
+    ex = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
     }
   }
 
