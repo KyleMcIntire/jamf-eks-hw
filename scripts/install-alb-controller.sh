@@ -52,17 +52,19 @@ echo "Adding EKS Helm repository..."
 helm repo add eks https://aws.github.io/eks-charts
 helm repo update
 
-# Create IAM service account for AWS Load Balancer Controller
-echo "Creating IAM service account..."
-eksctl create iamserviceaccount \
-  --cluster="$CLUSTER_NAME" \
-  --namespace=kube-system \
-  --name=aws-load-balancer-controller \
-  --role-name AmazonEKSLoadBalancerControllerRole \
-  --attach-policy-arn=arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess \
-  --approve \
-  --override-existing-serviceaccounts \
-  --region="$AWS_REGION"
+# Get IAM role ARN from Terraform output
+echo "Getting IAM role ARN from Terraform..."
+cd terraform/environments/demo
+ROLE_ARN=$(terraform output -raw aws_load_balancer_controller_role_arn 2>/dev/null || echo "")
+cd - > /dev/null
+
+if [ -z "$ROLE_ARN" ]; then
+    echo "Error: Could not get IAM role ARN from Terraform output"
+    echo "Please ensure Terraform has been applied and the aws_load_balancer_controller_role_arn output exists"
+    exit 1
+fi
+
+echo "Using IAM role ARN: $ROLE_ARN"
 
 # Apply CRDs
 echo "Applying AWS Load Balancer Controller CRDs..."
@@ -73,8 +75,9 @@ echo "Installing AWS Load Balancer Controller..."
 helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
   -n kube-system \
   --set clusterName="$CLUSTER_NAME" \
-  --set serviceAccount.create=false \
+  --set serviceAccount.create=true \
   --set serviceAccount.name=aws-load-balancer-controller \
+  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ROLE_ARN" \
   --set region="$AWS_REGION" \
   --set vpcId="$VPC_ID" \
   --wait \
