@@ -13,10 +13,10 @@ wordpress:
     requests:
       cpu: "100m"
       memory: "128Mi"
-  livenessProbe:
-    enabled: false
-  readinessProbe:
-    enabled: false
+  # livenessProbe:
+  #   enabled: false
+  # readinessProbe:
+  #   enabled: false
 
 additionalLabels:
   environment: demo
