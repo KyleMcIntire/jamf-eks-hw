@@ -1,0 +1,59 @@
+# AWS Load Balancer Controller Helm values
+# Replace the placeholder values with your actual cluster information
+
+# Cluster configuration - REPLACE THESE VALUES
+clusterName: "REPLACE_WITH_CLUSTER_NAME"
+region: "REPLACE_WITH_AWS_REGION"
+vpcId: "REPLACE_WITH_VPC_ID"
+
+# Service Account configuration
+serviceAccount:
+  create: true
+  name: aws-load-balancer-controller
+  annotations:
+    eks.amazonaws.com/role-arn: "REPLACE_WITH_IAM_ROLE_ARN"
+
+# Resource configuration
+resources:
+  limits:
+    cpu: 200m
+    memory: 500Mi
+  requests:
+    cpu: 100m
+    memory: 200Mi
+
+# High availability
+replicaCount: 2
+
+# Pod disruption budget
+podDisruptionBudget:
+  maxUnavailable: 1
+
+# Node selector for system workloads (optional)
+# nodeSelector:
+#   node-type: system
+
+# Tolerations for dedicated nodes (optional)
+# tolerations:
+#   - key: "node-type"
+#     operator: "Equal"
+#     value: "system"
+#     effect: "NoSchedule"
+
+# Anti-affinity to spread replicas across nodes
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - aws-load-balancer-controller
+        topologyKey: kubernetes.io/hostname
+
+# Security context
+securityContext:
+  fsGroup: 65534
