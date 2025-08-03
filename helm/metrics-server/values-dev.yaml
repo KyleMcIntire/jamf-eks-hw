@@ -1,0 +1,31 @@
+# Metrics Server values for development environments (kind, minikube, etc.)
+# This configuration uses insecure TLS for kubelet communication
+
+defaultArgs:
+  - --cert-dir=/tmp
+  - --secure-port=4443
+  - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+  - --kubelet-use-node-status-port
+  - --metric-resolution=15s
+  - --kubelet-insecure-tls  # Required for dev clusters with self-signed certs
+
+containerPort: 4443
+securePort: 4443
+
+# Resource limits for development
+resources:
+  requests:
+    cpu: 50m
+    memory: 100Mi
+  limits:
+    cpu: 200m
+    memory: 200Mi
+
+# Tolerations for single-node clusters
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
