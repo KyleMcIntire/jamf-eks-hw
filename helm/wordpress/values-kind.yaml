@@ -11,8 +11,8 @@ wordpress:
       cpu: "200m"
       memory: "256Mi"
     requests:
-      cpu: "100m"
-      memory: "128Mi"
+      cpu: "50m"
+      memory: "200Mi"
   # livenessProbe:
   #   enabled: false
   # readinessProbe:
@@ -51,17 +51,21 @@ service:
 # Single replica for testing
 replicaCount: 1
 
-# Disable HPA for local testing
+# HPA configuration for demo
 autoscaling:
-  enabled: false
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 50
+  targetMemoryUtilizationPercentage: 60
 
 # Reduce resource quotas for kind
 resourceQuota:
   requests:
-    cpu: "2"
-    memory: 2Gi
-  limits:
     cpu: "4"
     memory: 4Gi
+  limits:
+    cpu: "8"
+    memory: 8Gi
   persistentvolumeclaims: "5"
-  pods: "10"
+  pods: "20"
