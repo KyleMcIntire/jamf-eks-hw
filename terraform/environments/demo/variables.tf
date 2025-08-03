@@ -49,5 +49,5 @@ variable "desired_size" {
 variable "instance_types" {
   description = "EC2 instance types for nodes"
   type        = list(string)
-  default     = ["t3.small"] # Cost-effective for demo
+  default     = ["t3.large"] # Cost-effective for demo
 }

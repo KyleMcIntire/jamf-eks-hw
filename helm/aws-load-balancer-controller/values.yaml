@@ -2,16 +2,16 @@
 # Replace the placeholder values with your actual cluster information
 
 # Cluster configuration - REPLACE THESE VALUES
-clusterName: "REPLACE_WITH_CLUSTER_NAME"
-region: "REPLACE_WITH_AWS_REGION"
-vpcId: "REPLACE_WITH_VPC_ID"
+clusterName: "jamf-demo-cluster"
+region: "us-east-2"
+vpcId: "vpc-04e8e7fb327fa8b30"
 
 # Service Account configuration
 serviceAccount:
   create: true
   name: aws-load-balancer-controller
   annotations:
-    eks.amazonaws.com/role-arn: "REPLACE_WITH_IAM_ROLE_ARN"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::186582696199:role/AmazonEKSLoadBalancerControllerRole"
 
 # Resource configuration
 resources:

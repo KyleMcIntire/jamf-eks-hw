@@ -1,0 +1,134 @@
+# EKS Demo values - minimal resources for small cluster
+# This overrides the main values.yaml for EKS demo deployment
+
+# Namespace configuration
+namespace: wordpress-demo
+
+# WordPress configuration
+wordpress:
+  image:
+    repository: wordpress
+    tag: "6.4.2-apache"
+    pullPolicy: IfNotPresent
+
+  # WordPress admin configuration
+  username: admin
+  password: "" # Auto-generated
+  email: admin@example.com
+  firstName: Admin
+  lastName: User
+  blogName: "EKS WordPress Demo"
+
+  persistence:
+    enabled: true
+    storageClass: "gp2" # EKS default
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi # Smaller for demo
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "512Mi"
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+
+  # Health checks
+  livenessProbe:
+    enabled: true
+    path: /wp-admin/install.php
+    initialDelaySeconds: 120
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+  readinessProbe:
+    enabled: true
+    path: /wp-admin/install.php
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+# MySQL configuration
+mysql:
+  image:
+    repository: mariadb # Lighter than MySQL
+    tag: "10.11"
+    pullPolicy: IfNotPresent
+
+  # Database configuration
+  database: wordpress
+  user: wordpress
+  password: "" # Auto-generated
+  rootPassword: "" # Auto-generated
+
+  persistence:
+    enabled: true
+    storageClass: "gp2" # EKS default
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi # Smaller for demo
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+
+# Service configuration
+service:
+  type: LoadBalancer
+  port: 80
+
+# Initial replicas for demo (HPA will scale 2-10 based on load)
+replicaCount: 2
+
+# HPA configuration for demo
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 50
+  targetMemoryUtilizationPercentage: 60
+
+# Resource quotas configured for load testing demo
+resourceQuota:
+  requests:
+    cpu: "2"
+    memory: 4Gi
+  limits:
+    cpu: "4"
+    memory: 8Gi
+  persistentvolumeclaims: "5"
+  pods: "20"
+
+# Security configuration
+security:
+  podSecurityStandard:
+    enforce: baseline
+    audit: restricted
+    warn: restricted
+
+# Limit range configuration
+limitRange:
+  default:
+    cpu: "200m"
+    memory: "512Mi"
+  defaultRequest:
+    cpu: "50m"
+    memory: "128Mi"
+
+# Labels for demo
+additionalLabels:
+  environment: eks-demo
+  team: platform
+  app: wordpress
+  version: "1.0"
+# Load Testing Notes:
+# - Use scripts/load-test-demo.sh to demonstrate HPA scaling
+# - Resource quotas allow scaling up to 10 WordPress pods
+# - HPA targets: CPU 50%, Memory 60%
+# - Expected baseline: 2 pods (due to memory pressure)
+# - Expected scaling: 2 → 10 pods under load
