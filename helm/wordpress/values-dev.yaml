@@ -9,10 +9,10 @@ wordpress:
   resources:
     limits:
       cpu: "200m"
-      memory: "256Mi"
+      memory: "512Mi"
     requests:
       cpu: "50m"
-      memory: "200Mi"
+      memory: "256Mi"
   # livenessProbe:
   #   enabled: false
   # readinessProbe:
@@ -41,7 +41,7 @@ mysql:
       memory: "1Gi"
     requests:
       cpu: "200m"
-      memory: "512Mi"
+      memory: "128Mi"
 
 # Use NodePort for easier local access
 service:
@@ -57,7 +57,7 @@ autoscaling:
   minReplicas: 2
   maxReplicas: 8
   targetCPUUtilizationPercentage: 50
-  targetMemoryUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
 
 # Reduce resource quotas for kind
 resourceQuota:

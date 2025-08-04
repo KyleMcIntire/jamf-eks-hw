@@ -31,7 +31,7 @@ wordpress:
       memory: "512Mi"
     requests:
       cpu: "50m"
-      memory: "128Mi"
+      memory: "256Mi"
 
   # Health checks
   livenessProbe:
@@ -75,7 +75,7 @@ mysql:
       memory: "256Mi"
     requests:
       cpu: "50m"
-      memory: "64Mi"
+      memory: "128Mi"
 
 # Service configuration
 service:
@@ -91,7 +91,7 @@ autoscaling:
   minReplicas: 2
   maxReplicas: 10
   targetCPUUtilizationPercentage: 50
-  targetMemoryUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
 
 # Resource quotas configured for load testing demo
 resourceQuota:
