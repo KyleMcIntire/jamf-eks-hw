@@ -6,7 +6,7 @@
 set -e
 
 NAMESPACE="wordpress-demo"
-LOAD_PODS=5
+LOAD_PODS=2
 
 start_load_test() {
     echo "🚀 Starting load test with $LOAD_PODS pods..."

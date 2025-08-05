@@ -15,6 +15,8 @@ This directory contains Helm values for deploying the AWS Load Balancer Controll
 The IAM role needs the following AWS managed policy:
 - `AWSLoadBalancerControllerIAMPolicy`
 
+This is created via the terraform deployment.
+
 Or create a custom policy with the permissions from: https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.2/docs/install/iam_policy.json
 
 ## Setup Instructions
@@ -56,29 +58,24 @@ echo "IAM Role ARN: $ROLE_ARN"
 cd -
 ```
 
-### 4. Update Values File
+### 4. Install with Custom Values
 
-Edit `helm/aws-load-balancer-controller/values.yaml` and replace the placeholder values:
-
-```yaml
-clusterName: "your-cluster-name"
-region: "us-west-2"
-vpcId: "vpc-xxxxxxxxx"
-serviceAccount:
-  annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/AmazonEKSLoadBalancerControllerRole"
-```
-
-### 5. Install the Controller
+Instead of modifying the values file, pass the required values as arguments to the helm install command using the variables from step 3:
 
 ```bash
-helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
-  --namespace kube-system \
-  --create-namespace \
-  -f helm/aws-load-balancer-controller/values.yaml \
-  --wait \
-  --timeout=300s
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName="$CLUSTER_NAME" \
+  --set region="$AWS_REGION" \
+  --set vpcId="$VPC_ID" \
+  --set-string serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ROLE_ARN"
 ```
+
+This uses the environment variables set in the previous step to automatically configure the controller with your cluster's specific values.
+
+### 5. Verify Installation
+
+The installation from step 4 will automatically wait for the deployment to be ready. You can verify it's working with the commands in the next section.
 
 ## Verification
 

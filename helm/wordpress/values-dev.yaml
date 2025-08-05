@@ -1,22 +1,52 @@
 # Kind-specific values for local testing
-# This overrides the main values.yaml for kind deployment
+
+# Namespace configuration
+namespace: wordpress-demo
 
 # Use default storage class for kind
 wordpress:
+  image:
+    repository: wordpress
+    tag: "6.4.2-apache"
+    pullPolicy: IfNotPresent
+
+  # WordPress admin configuration
+  username: admin
+  password: "" # Auto-generated
+  email: admin@example.com
+  firstName: Admin
+  lastName: User
+  blogName: "WordPress Dev"
+
   persistence:
     storageClass: "standard" # kind's default storage class
+    accessModes:
+      - ReadWriteOnce
     size: 5Gi # Smaller for local testing
   resources:
     limits:
       cpu: "200m"
-      memory: "256Mi"
+      memory: "512Mi"
     requests:
       cpu: "50m"
-      memory: "200Mi"
-  # livenessProbe:
-  #   enabled: false
-  # readinessProbe:
-  #   enabled: false
+      memory: "256Mi"
+
+  # Health checks
+  livenessProbe:
+    enabled: true
+    path: /wp-admin/install.php
+    initialDelaySeconds: 120
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+  readinessProbe:
+    enabled: true
+    path: /wp-admin/install.php
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
 
 additionalLabels:
   environment: demo
@@ -29,6 +59,13 @@ mysql:
     repository: mariadb
     tag: "10.11"
     pullPolicy: IfNotPresent
+
+  # Database configuration
+  database: wordpress
+  user: wordpress
+  password: "" # Auto-generated
+  rootPassword: "" # Auto-generated
+
   persistence:
     enabled: true
     storageClass: "standard" # kind's default storage class
@@ -41,7 +78,7 @@ mysql:
       memory: "1Gi"
     requests:
       cpu: "200m"
-      memory: "512Mi"
+      memory: "128Mi"
 
 # Use NodePort for easier local access
 service:
@@ -55,9 +92,9 @@ replicaCount: 1
 autoscaling:
   enabled: true
   minReplicas: 2
-  maxReplicas: 8
-  targetCPUUtilizationPercentage: 50
-  targetMemoryUtilizationPercentage: 60
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
 
 # Reduce resource quotas for kind
 resourceQuota:
@@ -69,3 +106,19 @@ resourceQuota:
     memory: 8Gi
   persistentvolumeclaims: "5"
   pods: "20"
+
+# Limit range configuration
+limitRange:
+  default:
+    cpu: "200m"
+    memory: "512Mi"
+  defaultRequest:
+    cpu: "50m"
+    memory: "128Mi"
+
+# Security configuration
+security:
+  podSecurityStandard:
+    enforce: baseline
+    audit: restricted
+    warn: restricted

@@ -7,7 +7,7 @@ defaultArgs:
   - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
   - --kubelet-use-node-status-port
   - --metric-resolution=15s
-  - --kubelet-insecure-tls  # Required for dev clusters with self-signed certs
+  - --kubelet-insecure-tls # Required for dev clusters with self-signed certs
 
 containerPort: 4443
 securePort: 4443

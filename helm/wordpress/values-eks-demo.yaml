@@ -31,7 +31,7 @@ wordpress:
       memory: "512Mi"
     requests:
       cpu: "50m"
-      memory: "128Mi"
+      memory: "256Mi"
 
   # Health checks
   livenessProbe:
@@ -75,12 +75,14 @@ mysql:
       memory: "256Mi"
     requests:
       cpu: "50m"
-      memory: "64Mi"
+      memory: "128Mi"
 
 # Service configuration
 service:
   type: LoadBalancer
   port: 80
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
 
 # Initial replicas for demo (HPA will scale 2-10 based on load)
 replicaCount: 2
@@ -89,9 +91,9 @@ replicaCount: 2
 autoscaling:
   enabled: true
   minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 50
-  targetMemoryUtilizationPercentage: 60
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
 
 # Resource quotas configured for load testing demo
 resourceQuota:
