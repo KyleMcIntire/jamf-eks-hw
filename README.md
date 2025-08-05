@@ -16,6 +16,11 @@ This project demonstrates a WordPress deployment on Amazon EKS for the Jamf DevO
       - [For AWS EKS (Production)](#for-aws-eks-production)
       - [For Local Kind Cluster (Development)](#for-local-kind-cluster-development)
     - [3. Test Autoscaling](#3-test-autoscaling)
+  - [Accessing WordPress](#accessing-wordpress)
+    - [AWS EKS (AWS Load Balancer Controller)](#aws-eks-aws-load-balancer-controller)
+    - [Local Kind Cluster (NodePort Service)](#local-kind-cluster-nodeport-service)
+    - [Port Forwarding (Any Environment)](#port-forwarding-any-environment)
+    - [WordPress Admin Access](#wordpress-admin-access)
   - [Project Structure](#project-structure)
   - [Architecture Overview](#architecture-overview)
   - [Resource Management \& Scaling](#resource-management--scaling)
@@ -103,6 +108,96 @@ kubectl get hpa -n wordpress-demo -w
 
 # Stop load test
 ./scripts/load-test-demo.sh stop
+```
+
+## Accessing WordPress
+
+Once deployed, you can access your WordPress site using one of the following methods:
+
+### AWS EKS (AWS Load Balancer Controller)
+
+The chart uses LoadBalancer services which work with the AWS Load Balancer Controller to provision Application Load Balancers:
+
+```bash
+# Check if AWS Load Balancer Controller is installed
+kubectl get pods -n kube-system | grep aws-load-balancer-controller
+
+# Get the external load balancer URL (provisioned by AWS Load Balancer Controller)
+kubectl get svc wordpress-demo -n wordpress-demo
+
+# Wait for EXTERNAL-IP to be assigned (may take 2-3 minutes)
+# Access WordPress at: http://<EXTERNAL-IP>
+```
+
+**Benefits with AWS Load Balancer Controller:**
+
+- Provisions Application Load Balancer (ALB) instead of Classic Load Balancer
+- Better performance and cost optimization
+- Advanced routing and SSL/TLS support capabilities
+
+**Optional: Create Custom Ingress**
+
+For advanced routing, you can create an Ingress resource:
+
+```yaml
+# Save as wordpress-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wordpress-ingress
+  namespace: wordpress-demo
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: wordpress-demo
+            port:
+              number: 80
+```
+
+```bash
+# Apply the Ingress
+kubectl apply -f wordpress-ingress.yaml
+
+# Get the ALB URL
+kubectl get ingress wordpress-ingress -n wordpress-demo
+```
+
+### Local Kind Cluster (NodePort Service)
+
+```bash
+# Get the NodePort
+kubectl get svc wordpress-demo -n wordpress-demo
+
+# Access WordPress at: http://localhost:<NODE-PORT>
+# Default NodePort range: 30000-32767
+```
+
+### Port Forwarding (Any Environment)
+
+```bash
+# Forward local port 8080 to WordPress service
+kubectl port-forward svc/wordpress-demo 8080:80 -n wordpress-demo
+
+# Access WordPress at: http://localhost:8080
+```
+
+### WordPress Admin Access
+
+```bash
+# Get the admin password
+kubectl get secret wordpress-demo-secrets -n wordpress-demo -o jsonpath='{.data.wordpress-password}' | base64 -d
+
+# Login at: http://<your-wordpress-url>/wp-admin
+# Username: admin
+# Password: <retrieved-password>
 ```
 
 ## Project Structure

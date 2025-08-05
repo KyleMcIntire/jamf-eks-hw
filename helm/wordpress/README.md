@@ -9,6 +9,12 @@ This Helm chart deploys a WordPress application with MySQL database, including h
     - [Quick Start (Kind/Local Development)](#quick-start-kindlocal-development)
     - [EKS Demo Installation](#eks-demo-installation)
     - [Custom Installation](#custom-installation)
+  - [Accessing WordPress](#accessing-wordpress)
+    - [AWS Load Balancer Controller (EKS)](#aws-load-balancer-controller-eks)
+    - [Custom Ingress (Advanced)](#custom-ingress-advanced)
+    - [LoadBalancer Service (Alternative)](#loadbalancer-service-alternative)
+    - [Local Access via Port Forwarding](#local-access-via-port-forwarding)
+    - [Troubleshooting Access Issues](#troubleshooting-access-issues)
   - [Configuration](#configuration)
     - [Values Files](#values-files)
     - [Key Configuration Options](#key-configuration-options)
@@ -47,7 +53,7 @@ This Helm chart deploys a WordPress application with MySQL database, including h
     - [Chart Structure](#chart-structure)
     - [Testing Changes](#testing-changes)
   - [Examples](#examples)
-    - [Accessing WordPress](#accessing-wordpress)
+    - [Accessing WordPress](#accessing-wordpress-1)
     - [Scaling Manually](#scaling-manually)
     - [Backup Database](#backup-database)
   - [References](#references)
@@ -84,7 +90,7 @@ helm install wordpress . -f values-dev.yaml
 
 ```bash
 # Install with EKS demo values (optimized for load testing)
-helm install wordpress . -f values-eks-demo.yaml -n wordpress-demo --create-namespace
+helm install wordpress . -f values-eks-demo.yaml
 ```
 
 ### Custom Installation
@@ -95,6 +101,103 @@ helm install wordpress . \
   --set wordpress.password=mypassword \
   --set mysql.password=mysqlpassword \
   --set service.type=LoadBalancer
+```
+
+## Accessing WordPress
+
+After successful installation, you can access your WordPress site using the following methods:
+
+### AWS Load Balancer Controller (EKS)
+
+This chart uses LoadBalancer services that integrate with the AWS Load Balancer Controller:
+
+```bash
+# Verify AWS Load Balancer Controller is running
+kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
+
+# Get the LoadBalancer service URL (creates ALB via AWS Load Balancer Controller)
+kubectl get svc wordpress -n wordpress-demo
+
+# Wait for EXTERNAL-IP to be provisioned (2-3 minutes)
+# Access WordPress at: http://<EXTERNAL-IP>
+```
+
+**AWS Load Balancer Controller Benefits:**
+
+- Automatically provisions Application Load Balancer (ALB)
+- Better performance than Classic Load Balancer
+- Cost optimization and advanced AWS integration
+- Support for SSL/TLS termination and advanced routing
+
+### Custom Ingress (Advanced)
+
+For more advanced routing and SSL termination, create a custom Ingress resource:
+
+```yaml
+# wordpress-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wordpress-ingress
+  namespace: wordpress-demo
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: wordpress
+            port:
+              number: 80
+```
+
+```bash
+# Apply the Ingress
+kubectl apply -f wordpress-ingress.yaml
+
+# Get the ALB URL
+kubectl get ingress wordpress-ingress -n wordpress-demo
+```
+
+### LoadBalancer Service (Alternative)
+
+```bash
+# Check service status and get external IP
+kubectl get svc wordpress -n wordpress-demo
+
+# Wait for EXTERNAL-IP to be provisioned (2-3 minutes)
+# Access WordPress at: http://<EXTERNAL-IP>
+```
+
+### Local Access via Port Forwarding
+
+```bash
+# Forward local port to WordPress service
+kubectl port-forward svc/wordpress 8080:80 -n wordpress-demo
+
+# Access WordPress at: http://localhost:8080
+```
+
+### Troubleshooting Access Issues
+
+```bash
+# Check pod status
+kubectl get pods -n wordpress-demo
+
+# Check service configuration
+kubectl describe svc wordpress -n wordpress-demo
+
+# Check ingress (if using ingress controller)
+kubectl get ingress -n wordpress-demo
+
+# View WordPress logs
+kubectl logs -l app=wordpress -n wordpress-demo
 ```
 
 ## Configuration

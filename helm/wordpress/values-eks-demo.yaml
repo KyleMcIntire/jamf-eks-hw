@@ -81,6 +81,8 @@ mysql:
 service:
   type: LoadBalancer
   port: 80
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
 
 # Initial replicas for demo (HPA will scale 2-10 based on load)
 replicaCount: 2
