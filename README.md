@@ -21,6 +21,7 @@ This project demonstrates a WordPress deployment on Amazon EKS or local cluster 
     - [Port Forwarding (Any Environment)](#port-forwarding-any-environment)
   - [Project Structure](#project-structure)
   - [Architecture Overview](#architecture-overview)
+    - [Key Components](#key-components)
   - [Resource Management \& Scaling](#resource-management--scaling)
     - [Namespace Resource Quotas](#namespace-resource-quotas)
     - [HPA Configuration](#hpa-configuration)
@@ -194,6 +195,129 @@ kubectl port-forward svc/wordpress 8080:80 -n wordpress-demo
 ```
 
 ## Architecture Overview
+
+```mermaid
+graph TB
+    subgraph "AWS Cloud"
+        subgraph "VPC (10.0.0.0/16)"
+            subgraph "Public Subnets"
+                IGW[Internet Gateway]
+                NAT[NAT Gateway]
+                ALB[Application Load Balancer]
+            end
+            
+            subgraph "Private Subnets"
+                subgraph "EKS Control Plane"
+                    CP[EKS Control Plane<br/>Kubernetes 1.31]
+                end
+                
+                subgraph "EKS Worker Nodes (1-4)"
+                    WN1[t3.large Worker Node 1]
+                    WN2[t3.large Worker Node 2]
+                    WN3[t3.large Worker Node 3]
+                    WN4[t3.large Worker Node 4]
+                end
+            end
+        end
+        
+        subgraph "EBS Storage"
+            EBS1[WordPress PVC<br/>gp2 - 5Gi]
+            EBS2[MySQL PVC<br/>gp2 - 5Gi]
+        end
+    end
+    
+    subgraph "Kubernetes Namespace: wordpress-demo"
+        subgraph "WordPress Deployment"
+            WP1[WordPress Pod 1<br/>50m CPU / 256Mi RAM]
+            WP2[WordPress Pod 2<br/>50m CPU / 256Mi RAM]
+            WP3[WordPress Pod N<br/>HPA: 2-20 replicas]
+        end
+        
+        subgraph "MySQL Deployment"
+            DB[MariaDB 10.11<br/>50m CPU / 128Mi RAM]
+        end
+        
+        subgraph "Services"
+            WPSVC[WordPress Service<br/>LoadBalancer]
+            DBSVC[MySQL Service<br/>ClusterIP]
+        end
+        
+        subgraph "Configuration"
+            SEC[Secrets<br/>Auto-generated passwords]
+            HPA[Horizontal Pod Autoscaler<br/>CPU: 80% Memory: 80%]
+            RQ[Resource Quota<br/>2 CPU / 4Gi Memory]
+        end
+    end
+    
+    subgraph "Load Testing"
+        LT1[Load Test Pod 1<br/>busybox]
+        LT2[Load Test Pod 2<br/>busybox]
+    end
+    
+    subgraph "External Access"
+        USER[Users]
+        ADMIN[WordPress Admin]
+    end
+    
+    %% Connections
+    USER --> ALB
+    ADMIN --> ALB
+    ALB --> WPSVC
+    WPSVC --> WP1
+    WPSVC --> WP2
+    WPSVC --> WP3
+    WP1 --> DBSVC
+    WP2 --> DBSVC
+    WP3 --> DBSVC
+    DBSVC --> DB
+    
+    %% Storage connections
+    WP1 -.-> EBS1
+    WP2 -.-> EBS1
+    WP3 -.-> EBS1
+    DB -.-> EBS2
+    
+    %% Control plane connections
+    CP --> WN1
+    CP --> WN2
+    CP --> WN3
+    CP --> WN4
+    
+    %% Load testing
+    LT1 --> WPSVC
+    LT2 --> WPSVC
+    
+    %% HPA monitoring
+    HPA -.-> WP1
+    HPA -.-> WP2
+    HPA -.-> WP3
+    
+    %% Security
+    SEC -.-> WP1
+    SEC -.-> WP2
+    SEC -.-> WP3
+    SEC -.-> DB
+    
+    %% Internet connectivity
+    IGW --> ALB
+    NAT --> WN1
+    NAT --> WN2
+    NAT --> WN3
+    NAT --> WN4
+    
+    classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    classDef k8s fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff
+    classDef app fill:#2E8B57,stroke:#fff,stroke-width:2px,color:#fff
+    classDef storage fill:#FF6B6B,stroke:#fff,stroke-width:2px,color:#fff
+    classDef user fill:#9B59B6,stroke:#fff,stroke-width:2px,color:#fff
+    
+    class IGW,NAT,ALB,EBS1,EBS2 aws
+    class CP,WN1,WN2,WN3,WN4,HPA,RQ,SEC,WPSVC,DBSVC k8s
+    class WP1,WP2,WP3,DB,LT1,LT2 app
+    class USER,ADMIN user
+```
+
+### Key Components
 
 - **EKS Cluster**: Kubernetes 1.31, 1-4 worker nodes (t3.large)
 - **WordPress**: 2-20 pods with HPA (CPU/Memory based scaling)
