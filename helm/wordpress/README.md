@@ -2,6 +2,57 @@
 
 This Helm chart deploys a WordPress application with MySQL database, including horizontal pod autoscaling (HPA), resource quotas, and persistent storage.
 
+- [WordPress Helm Chart](#wordpress-helm-chart)
+  - [Overview](#overview)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+    - [Quick Start (Kind/Local Development)](#quick-start-kindlocal-development)
+    - [EKS Demo Installation](#eks-demo-installation)
+    - [Custom Installation](#custom-installation)
+  - [Configuration](#configuration)
+    - [Values Files](#values-files)
+    - [Key Configuration Options](#key-configuration-options)
+      - [WordPress Configuration](#wordpress-configuration)
+      - [MySQL Configuration](#mysql-configuration)
+      - [Autoscaling Configuration](#autoscaling-configuration)
+      - [Service Configuration](#service-configuration)
+  - [Environment-Specific Configurations](#environment-specific-configurations)
+    - [Kind/Local Development (`values-kind.yaml`)](#kindlocal-development-values-kindyaml)
+    - [EKS Demo (`values-eks-demo.yaml`)](#eks-demo-values-eks-demoyaml)
+  - [Horizontal Pod Autoscaler (HPA)](#horizontal-pod-autoscaler-hpa)
+    - [HPA Behavior](#hpa-behavior)
+    - [Testing HPA](#testing-hpa)
+      - [EKS Demo Load Test Configuration](#eks-demo-load-test-configuration)
+  - [Resource Management](#resource-management)
+    - [Resource Quotas](#resource-quotas)
+    - [Limit Ranges](#limit-ranges)
+  - [Persistent Storage](#persistent-storage)
+    - [WordPress Storage](#wordpress-storage)
+    - [MySQL Storage](#mysql-storage)
+  - [Security](#security)
+    - [Password Management](#password-management)
+    - [Pod Security](#pod-security)
+  - [Monitoring and Troubleshooting](#monitoring-and-troubleshooting)
+    - [Check Deployment Status](#check-deployment-status)
+    - [View Logs](#view-logs)
+    - [Common Issues](#common-issues)
+      - [HPA Not Scaling](#hpa-not-scaling)
+      - [Pods Stuck in Pending](#pods-stuck-in-pending)
+      - [Database Connection Issues](#database-connection-issues)
+  - [Upgrading](#upgrading)
+    - [Upgrade WordPress](#upgrade-wordpress)
+    - [Upgrade Configuration](#upgrade-configuration)
+  - [Uninstallation](#uninstallation)
+  - [Development](#development)
+    - [Chart Structure](#chart-structure)
+    - [Testing Changes](#testing-changes)
+  - [Examples](#examples)
+    - [Accessing WordPress](#accessing-wordpress)
+    - [Scaling Manually](#scaling-manually)
+    - [Backup Database](#backup-database)
+  - [References](#references)
+
+
 ## Overview
 
 The chart creates:
@@ -34,13 +85,6 @@ helm install wordpress . -f values-dev.yaml
 ```bash
 # Install with EKS demo values (optimized for load testing)
 helm install wordpress . -f values-eks-demo.yaml -n wordpress-demo --create-namespace
-```
-
-### Production Installation
-
-```bash
-# Install with production values
-helm install wordpress . -f values-prod.yaml
 ```
 
 ### Custom Installation
@@ -155,14 +199,6 @@ service:
 - Resource quotas allow scaling to 5 pods
 - MariaDB for lighter resource usage
 - Includes load testing documentation
-
-### Production (`values.yaml`)
-
-- Uses `gp3-encrypted` storage class (AWS EKS)
-- LoadBalancer service with SSL termination
-- Higher resource requests and limits
-- Production-grade MySQL
-- Strict resource quotas and security policies
 
 ## Horizontal Pod Autoscaler (HPA)
 

@@ -108,16 +108,16 @@ kubectl get hpa -n wordpress-demo -w
 ## Project Structure
 
 ```
-├── terraform/                     # Infrastructure as Code
-│   ├── environments/              # Environment-specific configurations
-│   └── modules/                   # Reusable Terraform modules
-├── helm/                          # Helm charts and configurations
-│   ├── aws-load-balancer-controller/  # AWS Load Balancer Controller
-│   ├── metrics-server/            # Kubernetes metrics server
-│   └── wordpress/                 # WordPress Helm chart
-│       └── templates/             # Kubernetes manifests
-├── scripts/                       # Automation and testing scripts
-└── docs/                         # Project documentation
+├── terraform/                        # Infrastructure as Code
+│   ├── environments/                 # Environment-specific configurations
+│   └── modules/                      # Reusable Terraform modules
+├── helm/                             # Helm charts and configurations
+│   ├── aws-load-balancer-controller/ # AWS Load Balancer Controller
+│   ├── metrics-server/               # Kubernetes metrics server
+│   └── wordpress/                    # WordPress Helm chart
+│       └── templates/                # Kubernetes manifests
+├── scripts/                          # Automation and testing scripts
+└── docs/                             # Project documentation
 ```
 
 ## Architecture Overview
