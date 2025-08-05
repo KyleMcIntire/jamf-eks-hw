@@ -401,7 +401,6 @@ kubectl top pods -n wordpress-demo
 - **Single NAT Gateway**: ~$45/month savings vs multi-AZ
 - **t3.large instances**: Cost-effective for demo workloads
 - **gp2 storage**: Standard EBS volumes
-- **Cluster Autoscaler**: Automatic node scaling
 - **Resource limits**: Prevent resource waste
 
 **Estimated monthly cost**: ~$150-200 for demo cluster
