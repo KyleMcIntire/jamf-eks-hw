@@ -1,5 +1,18 @@
 # Kubernetes Assignment - Jamf DevOps Engineer II (Kubernetes) Technical Interview
 
+- [Kubernetes Assignment - Jamf DevOps Engineer II (Kubernetes) Technical Interview](#kubernetes-assignment---jamf-devops-engineer-ii-kubernetes-technical-interview)
+  - [Overview - What We Are Looking For](#overview---what-we-are-looking-for)
+  - [Alternate Options](#alternate-options)
+  - [Task Outline](#task-outline)
+  - [Demonstration of Work](#demonstration-of-work)
+    - [What problems did you encounter in this work, and how did you overcome them?](#what-problems-did-you-encounter-in-this-work-and-how-did-you-overcome-them)
+    - [What resources did you use to complete the work, and how did you research any necessary information?](#what-resources-did-you-use-to-complete-the-work-and-how-did-you-research-any-necessary-information)
+    - [How would you configure your application for high availability?](#how-would-you-configure-your-application-for-high-availability)
+    - [What is the difference, if any, between deploying this configuration with Terraform and Helm versus a plain Kubernetes manifest?](#what-is-the-difference-if-any-between-deploying-this-configuration-with-terraform-and-helm-versus-a-plain-kubernetes-manifest)
+    - [If any of the tools you used in this work are new to you, what other similar tools have you used in the past, and what differences could you describe between our tooling and your past tools?](#if-any-of-the-tools-you-used-in-this-work-are-new-to-you-what-other-similar-tools-have-you-used-in-the-past-and-what-differences-could-you-describe-between-our-tooling-and-your-past-tools)
+    - [Are there any security vulnerabilities you see in your deployment? What steps would you take to harden this deployment if you were running it in a large enterprise setting?](#are-there-any-security-vulnerabilities-you-see-in-your-deployment-what-steps-would-you-take-to-harden-this-deployment-if-you-were-running-it-in-a-large-enterprise-setting)
+
+
 ## Overview - What We Are Looking For
 
 This task is designed to see how you approach deploying the types of systems that our Kube teams encounter on a regular basis. We appreciate that this interview step takes time and energy, and we thank you for letting us see your best work in action. Please feel free to use supplementary resources, but please share in the work demonstration (see below) what resources you consulted to complete this work. Your problem-solving process is as much a part of this interview stage as is the product you build.
@@ -24,15 +37,15 @@ You may use any Kubernetes platform or provider for the following work, however 
 
 We will schedule a one-hour demonstration session with some of our engineering staff. During this session, you can demonstrate your product and explain your process. The first 30 minutes are reserved for you to “show and tell.” Some things that you might include, which are of particular interest to us, are:
 
-- What problems did you encounter in this work, and how did you overcome them?
+### What problems did you encounter in this work, and how did you overcome them?
 
 **Key challenges and solutions:**
 
 1. **Resource Quotas vs HPA Scaling**: The initial resource quotas were too restrictive for effective HPA demonstration. WordPress pods couldn't scale beyond 2 replicas due to memory limits. Resolved by adjusting the resource quotas in `values-eks-demo.yaml` to allow up to 20 pods with 4Gi total memory requests.
 
-3. **Secret Management**: Helm's random password generation was regenerating passwords on every upgrade, breaking WordPress installations. Implemented a lookup-based approach in `templates/secrets.yaml` that preserves existing passwords while generating new ones only for fresh installations.
+2. **Secret Management**: Helm's random password generation was regenerating passwords on every upgrade, breaking WordPress installations. Implemented a lookup-based approach in `templates/secrets.yaml` that preserves existing passwords while generating new ones only for fresh installations.
 
-- What resources did you use to complete the work, and how did you research any necessary information?
+### What resources did you use to complete the work, and how did you research any necessary information?
 
 **Primary resources used:**
 
@@ -56,7 +69,7 @@ We will schedule a one-hour demonstration session with some of our engineering s
    - Consulted community examples for real-world patterns and troubleshooting
    - Tested configurations in local Kind clusters before EKS deployment
 
-- How would you configure your application for high availability?
+### How would you configure your application for high availability?
 
 **Current demo setup limitations:**
 
@@ -134,7 +147,7 @@ We will schedule a one-hour demonstration session with some of our engineering s
        service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
    ```
 
-- What is the difference, if any, between deploying this configuration with Terraform and Helm versus a plain Kubernetes manifest?
+### What is the difference, if any, between deploying this configuration with Terraform and Helm versus a plain Kubernetes manifest?
 
 **Terraform + Helm Approach (Current Implementation):**
 
@@ -178,9 +191,11 @@ The current implementation gets the best of both worlds - Terraform's infrastruc
 helm template wordpress . -f values-eks-demo.yaml > wordpress-manifests.yaml
 ```
 
-- If any of the tools you used in this work are new to you, what other similar tools have you used in the past, and what differences could you describe between our tooling and your past tools?
+### If any of the tools you used in this work are new to you, what other similar tools have you used in the past, and what differences could you describe between our tooling and your past tools?
 
-- Are there any security vulnerabilities you see in your deployment? What steps would you take to harden this deployment if you were running it in a large enterprise setting?
+My experience has been with AWS EKS and Helm in the past. These are the tools / technologies I am used to.
+
+### Are there any security vulnerabilities you see in your deployment? What steps would you take to harden this deployment if you were running it in a large enterprise setting?
 
 **Current Security Vulnerabilities:**
 
@@ -345,5 +360,3 @@ helm template wordpress . -f values-eks-demo.yaml > wordpress-manifests.yaml
    ```
 
 These hardening measures would transform the demo deployment into an enterprise-ready, security-compliant WordPress platform suitable for production workloads.
-
-You are not required to prepare slides, although you may do so if you wish. Please plan on sharing and explaining any relevant code examples as part of your presentation.

@@ -1,5 +1,4 @@
 # EKS Demo values - minimal resources for small cluster
-# This overrides the main values.yaml for EKS demo deployment
 
 # Namespace configuration
 namespace: wordpress-demo

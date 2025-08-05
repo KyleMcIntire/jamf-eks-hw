@@ -23,7 +23,7 @@ This Helm chart deploys a WordPress application with MySQL database, including h
       - [Autoscaling Configuration](#autoscaling-configuration)
       - [Service Configuration](#service-configuration)
   - [Environment-Specific Configurations](#environment-specific-configurations)
-    - [Kind/Local Development (`values-kind.yaml`)](#kindlocal-development-values-kindyaml)
+    - [Kind/Local Development (`values-dev.yaml`)](#kindlocal-development-values-devyaml)
     - [EKS Demo (`values-eks-demo.yaml`)](#eks-demo-values-eks-demoyaml)
   - [Horizontal Pod Autoscaler (HPA)](#horizontal-pod-autoscaler-hpa)
     - [HPA Behavior](#hpa-behavior)
@@ -82,7 +82,7 @@ The chart creates:
 ### Quick Start (Kind/Local Development)
 
 ```bash
-# Install with kind-specific values
+# Install with dev-specific values
 helm install wordpress . -f values-dev.yaml
 ```
 
@@ -204,11 +204,10 @@ kubectl logs -l app=wordpress -n wordpress-demo
 
 ### Values Files
 
-| File                   | Purpose                     | Environment        |
-| ---------------------- | --------------------------- | ------------------ |
-| `values.yaml`          | Default production values   | Production/AWS EKS |
-| `values-eks-demo.yaml` | EKS demo with load testing  | AWS EKS Demo       |
-| `values-kind.yaml`     | Local development overrides | Kind/Minikube      |
+| File                   | Purpose                     | Environment    |
+| ---------------------- | --------------------------- | -------------- |
+| `values-dev.yaml`      | Local development overrides | Kind/Local Dev |
+| `values-eks-demo.yaml` | EKS demo with load testing  | AWS EKS Demo   |
 
 ### Key Configuration Options
 
@@ -228,17 +227,17 @@ wordpress:
   # Resource limits
   resources:
     requests:
-      cpu: "100m"
-      memory: "128Mi"
+      cpu: "50m"
+      memory: "256Mi"
     limits:
-      cpu: "500m"
+      cpu: "200m"
       memory: "512Mi"
   
   # Persistent storage
   persistence:
     enabled: true
-    storageClass: "gp3-encrypted"
-    size: 10Gi
+    storageClass: "standard"  # "gp2" for EKS
+    size: 5Gi
 ```
 
 #### MySQL Configuration
@@ -246,8 +245,8 @@ wordpress:
 ```yaml
 mysql:
   image:
-    repository: mysql
-    tag: "8.0"
+    repository: mariadb
+    tag: "10.11"
   
   # Database settings
   database: wordpress
@@ -257,11 +256,11 @@ mysql:
   # Resource limits
   resources:
     requests:
-      cpu: "250m"
-      memory: "256Mi"
+      cpu: "50m"
+      memory: "128Mi"
     limits:
-      cpu: "500m"
-      memory: "512Mi"
+      cpu: "200m"
+      memory: "256Mi"
 ```
 
 #### Autoscaling Configuration
@@ -270,8 +269,8 @@ mysql:
 autoscaling:
   enabled: true
   minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 70
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
 ```
 
@@ -286,22 +285,24 @@ service:
 
 ## Environment-Specific Configurations
 
-### Kind/Local Development (`values-kind.yaml`)
+### Kind/Local Development (`values-dev.yaml`)
 
 - Uses `standard` storage class (kind default)
 - NodePort service for easy local access
-- Lower resource requests and limits
-- MariaDB instead of MySQL for better compatibility
-- Relaxed resource quotas
+- Lower resource requests and limits (50m CPU, 256Mi memory)
+- MariaDB 10.11 instead of MySQL for better compatibility
+- Smaller storage sizes (5Gi for both WordPress and MySQL)
+- Relaxed resource quotas for local testing
 
 ### EKS Demo (`values-eks-demo.yaml`)
 
 - Uses `gp2` storage class (AWS EKS default)
-- LoadBalancer service (requires AWS Load Balancer Controller)
+- LoadBalancer service with AWS Load Balancer Controller annotations
 - Optimized for load testing and HPA demonstration
-- Resource quotas allow scaling to 5 pods
-- MariaDB for lighter resource usage
-- Includes load testing documentation
+- Resource quotas allow scaling up to 20 pods
+- MariaDB 10.11 for lighter resource usage
+- Smaller storage sizes (5Gi) for demo purposes
+- Includes load testing documentation and scripts
 
 ## Horizontal Pod Autoscaler (HPA)
 
@@ -309,10 +310,10 @@ The chart includes HPA configuration that automatically scales WordPress pods ba
 
 ### HPA Behavior
 
-- **Scale Up**: When CPU > 70% OR memory > 80%
-- **Scale Down**: When both CPU < 70% AND memory < 80%
+- **Scale Up**: When CPU > 80% OR memory > 80%
+- **Scale Down**: When both CPU < 80% AND memory < 80%
 - **Min Replicas**: 2 (configurable)
-- **Max Replicas**: 10 (configurable)
+- **Max Replicas**: 20 (configurable)
 - **Scale Down Delay**: ~5 minutes (Kubernetes default)
 
 ### Testing HPA
@@ -337,10 +338,11 @@ kubectl get hpa -n wordpress-demo -w
 
 The `values-eks-demo.yaml` file is specifically configured for effective load testing:
 
-- **Max Replicas**: 5 (allows visible scaling)
-- **Resource Quota**: 4Gi memory limit (supports 5 WordPress pods)
-- **HPA Targets**: CPU 50%, Memory 60% (sensitive scaling)
-- **Load Test**: 5 busybox pods generating continuous HTTP requests
+- **Max Replicas**: 20 (allows visible scaling)
+- **Resource Quota**: 4Gi memory limit (supports multiple WordPress pods)
+- **HPA Targets**: CPU 80%, Memory 80% (standard scaling thresholds)
+- **Load Test**: Uses the provided `scripts/load-test-demo.sh` script
+- **Initial Replicas**: 2 (baseline for scaling demonstration)
 
 ## Resource Management
 
@@ -351,12 +353,12 @@ The chart creates namespace-level resource quotas:
 ```yaml
 resourceQuota:
   requests:
-    cpu: "4"
-    memory: 8Gi
+    cpu: "2"      # "4" for dev
+    memory: 4Gi   # 4Gi for both dev and eks-demo
   limits:
-    cpu: "8"
-    memory: 16Gi
-  persistentvolumeclaims: "10"
+    cpu: "4"      # "8" for dev
+    memory: 8Gi   # 8Gi for both dev and eks-demo
+  persistentvolumeclaims: "5"
   pods: "20"
 ```
 
@@ -367,26 +369,30 @@ Default resource limits for pods without explicit resource specifications:
 ```yaml
 limitRange:
   default:
-    cpu: "500m"
+    cpu: "200m"
     memory: "512Mi"
   defaultRequest:
-    cpu: "100m"
+    cpu: "50m"
     memory: "128Mi"
 ```
 
 ## Persistent Storage
 
 ### WordPress Storage
+
 - **Path**: `/var/www/html`
-- **Default Size**: 10Gi (production), 5Gi (kind)
+- **Default Size**: 5Gi (both dev and eks-demo)
 - **Access Mode**: ReadWriteOnce
+- **Storage Class**: `standard` (dev), `gp2` (eks-demo)
 - **Contains**: WordPress files, themes, plugins, uploads
 
 ### MySQL Storage
+
 - **Path**: `/var/lib/mysql`
-- **Default Size**: 20Gi (production), 5Gi (kind)
+- **Default Size**: 5Gi (both dev and eks-demo)
 - **Access Mode**: ReadWriteOnce
-- **Contains**: MySQL database files
+- **Storage Class**: `standard` (dev), `gp2` (eks-demo)
+- **Contains**: MariaDB database files
 
 ## Security
 
@@ -464,7 +470,7 @@ kubectl logs -f deployment/wordpress -n wordpress-demo
 
 ```bash
 # Upgrade with new image version
-helm upgrade wordpress . -f values-kind.yaml \
+helm upgrade wordpress . -f values-dev.yaml \
   --set wordpress.image.tag=6.5.0-apache \
   --namespace wordpress-demo
 ```
@@ -473,7 +479,7 @@ helm upgrade wordpress . -f values-kind.yaml \
 
 ```bash
 # Upgrade with new values
-helm upgrade wordpress . -f values-kind.yaml \
+helm upgrade wordpress . -f values-dev.yaml \
   --namespace wordpress-demo
 ```
 
@@ -496,20 +502,21 @@ kubectl delete namespace wordpress-demo
 
 ```
 helm/wordpress/
-├── Chart.yaml              # Chart metadata
-├── values.yaml             # Default values (production)
-├── values-kind.yaml        # Kind/local overrides
+├── Chart.yaml                    # Chart metadata
+├── values-dev.yaml              # Local development values
+├── values-eks-demo.yaml         # EKS demo values
 ├── templates/
-│   ├── deployment.yaml     # WordPress deployment
-│   ├── mysql-deployment.yaml # MySQL deployment
-│   ├── service.yaml        # Services
-│   ├── pvc.yaml           # Persistent volume claims
-│   ├── secrets.yaml       # Password secrets
-│   ├── hpa.yaml           # Horizontal pod autoscaler
-│   ├── resource-quota.yaml # Resource quotas
-│   ├── limit-range.yaml   # Limit ranges
-│   └── _helpers.tpl       # Template helpers
-└── README.md              # This file
+│   ├── wordpress-deployment.yaml # WordPress deployment
+│   ├── mysql-deployment.yaml    # MySQL deployment
+│   ├── wordpress-service.yaml   # WordPress service
+│   ├── mysql-service.yaml       # MySQL service
+│   ├── wordpress-pvc.yaml       # WordPress persistent volume claim
+│   ├── mysql-pvc.yaml          # MySQL persistent volume claim
+│   ├── secrets.yaml            # Password secrets
+│   ├── hpa.yaml                # Horizontal pod autoscaler
+│   ├── namespace.yaml          # Namespace creation
+│   └── _helpers.tpl            # Template helpers
+└── README.md                   # This file
 ```
 
 ### Testing Changes
@@ -519,10 +526,10 @@ helm/wordpress/
 helm lint .
 
 # Template and review
-helm template wordpress . -f values-kind.yaml
+helm template wordpress . -f values-dev.yaml
 
 # Dry run
-helm install wordpress . -f values-kind.yaml --dry-run --debug
+helm install wordpress . -f values-dev.yaml --dry-run --debug
 ```
 
 ## Examples
@@ -532,13 +539,13 @@ helm install wordpress . -f values-kind.yaml --dry-run --debug
 After installation, get the service details:
 
 ```bash
-# For NodePort (kind)
+# For NodePort (dev/local)
 kubectl get svc wordpress -n wordpress-demo
 # Access via http://localhost:<nodeport>
 
-# For LoadBalancer (production)
+# For LoadBalancer (eks-demo)
 kubectl get svc wordpress -n wordpress-demo
-# Access via external IP
+# Access via external IP (AWS ALB)
 ```
 
 ### Scaling Manually

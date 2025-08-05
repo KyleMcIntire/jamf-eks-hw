@@ -2,7 +2,7 @@
 
 ## WordPress on EKS Implementation
 
-This project demonstrates a WordPress deployment on Amazon EKS for the Jamf DevOps Engineer II (Kubernetes) role technical interview.
+This project demonstrates a WordPress deployment on Amazon EKS or local cluster for the Jamf DevOps Engineer II (Kubernetes) role technical interview.
 
 ## Table of Contents
 
@@ -18,9 +18,7 @@ This project demonstrates a WordPress deployment on Amazon EKS for the Jamf DevO
     - [3. Test Autoscaling](#3-test-autoscaling)
   - [Accessing WordPress](#accessing-wordpress)
     - [AWS EKS (AWS Load Balancer Controller)](#aws-eks-aws-load-balancer-controller)
-    - [Local Kind Cluster (NodePort Service)](#local-kind-cluster-nodeport-service)
     - [Port Forwarding (Any Environment)](#port-forwarding-any-environment)
-    - [WordPress Admin Access](#wordpress-admin-access)
   - [Project Structure](#project-structure)
   - [Architecture Overview](#architecture-overview)
   - [Resource Management \& Scaling](#resource-management--scaling)
@@ -54,6 +52,7 @@ This project demonstrates a WordPress deployment on Amazon EKS for the Jamf DevO
 ## Quick Start
 
 ### Prerequisites
+
 - AWS CLI configured with appropriate permissions
 - Terraform >= 1.0
 - kubectl
@@ -95,7 +94,7 @@ kubectl get nodes
 
 2. **Deploy WordPress**
    - See [helm/wordpress/README.md](helm/wordpress/README.md) for complete deployment guide
-   - Use development configuration or EKS demo values work for local testing
+   - Use dev configuration: `helm/wordpress/values-dev.yaml`
 
 ### 3. Test Autoscaling
 
@@ -104,7 +103,7 @@ kubectl get nodes
 ./scripts/load-test-demo.sh start
 
 # Monitor scaling
-kubectl get hpa -n wordpress-demo -w
+./scripts/load-test-demo.sh status
 
 # Stop load test
 ./scripts/load-test-demo.sh stop
@@ -123,7 +122,7 @@ The chart uses LoadBalancer services which work with the AWS Load Balancer Contr
 kubectl get pods -n kube-system | grep aws-load-balancer-controller
 
 # Get the external load balancer URL (provisioned by AWS Load Balancer Controller)
-kubectl get svc wordpress-demo -n wordpress-demo
+kubectl get svc wordpress -n wordpress-demo
 
 # Wait for EXTERNAL-IP to be assigned (may take 2-3 minutes)
 # Access WordPress at: http://<EXTERNAL-IP>
@@ -157,7 +156,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: wordpress-demo
+            name: wordpress
             port:
               number: 80
 ```
@@ -170,34 +169,13 @@ kubectl apply -f wordpress-ingress.yaml
 kubectl get ingress wordpress-ingress -n wordpress-demo
 ```
 
-### Local Kind Cluster (NodePort Service)
-
-```bash
-# Get the NodePort
-kubectl get svc wordpress-demo -n wordpress-demo
-
-# Access WordPress at: http://localhost:<NODE-PORT>
-# Default NodePort range: 30000-32767
-```
-
 ### Port Forwarding (Any Environment)
 
 ```bash
 # Forward local port 8080 to WordPress service
-kubectl port-forward svc/wordpress-demo 8080:80 -n wordpress-demo
+kubectl port-forward svc/wordpress 8080:80 -n wordpress-demo
 
 # Access WordPress at: http://localhost:8080
-```
-
-### WordPress Admin Access
-
-```bash
-# Get the admin password
-kubectl get secret wordpress-demo-secrets -n wordpress-demo -o jsonpath='{.data.wordpress-password}' | base64 -d
-
-# Login at: http://<your-wordpress-url>/wp-admin
-# Username: admin
-# Password: <retrieved-password>
 ```
 
 ## Project Structure
@@ -217,11 +195,11 @@ kubectl get secret wordpress-demo-secrets -n wordpress-demo -o jsonpath='{.data.
 
 ## Architecture Overview
 
-- **EKS Cluster**: 1 control plane + 1-4 worker nodes (t3.large)
-- **WordPress**: 2-10 pods with HPA (CPU/Memory based scaling)
+- **EKS Cluster**: Kubernetes 1.31, 1-4 worker nodes (t3.large)
+- **WordPress**: 2-20 pods with HPA (CPU/Memory based scaling)
 - **MySQL**: Single pod with persistent storage (MariaDB 10.11)
 - **Storage**: EBS volumes via CSI driver (gp2, 5Gi each)
-- **Networking**: VPC with public/private subnets, single NAT gateway
+- **Networking**: VPC (10.0.0.0/16) with public/private subnets, single NAT gateway
 - **Security**: Pod Security Standards (baseline), RBAC, secrets management
 
 ## Resource Management & Scaling
@@ -239,15 +217,15 @@ persistentvolumeclaims: "5"   # Maximum PVCs
 
 ### HPA Configuration
 
-- **Min replicas**: 2, **Max replicas**: 10
-- **Scale up triggers**: CPU > 50% OR Memory > 70%
+- **Min replicas**: 2, **Max replicas**: 20
+- **Scale up triggers**: CPU > 80% OR Memory > 80%
 - **Scale down**: After 5 minutes of low usage
 - **Target resources**: WordPress deployment only
 
 ### Resource Limits Per Pod
 
 - **WordPress**: 200m CPU / 512Mi memory (limits), 50m CPU / 256Mi memory (requests)
-- **MySQL**: 200m CPU / 256Mi memory (limits), 50m CPU / 128Mi memory (requests)
+- **MySQL/MariaDB**: 200m CPU / 256Mi memory (limits), 50m CPU / 128Mi memory (requests)
 
 ### Rationale
 
@@ -260,6 +238,7 @@ persistentvolumeclaims: "5"   # Maximum PVCs
 ### 1. Infrastructure (Terraform)
 
 **Show**: `terraform/environments/demo/main.tf`
+
 - EKS cluster with managed node groups
 - VPC with public/private subnets
 - IRSA for AWS service integration
@@ -268,6 +247,7 @@ persistentvolumeclaims: "5"   # Maximum PVCs
 ### 2. Application (Helm)
 
 **Show**: `helm/wordpress/` structure
+
 - Templated Kubernetes manifests
 - Parameterized configuration via values
 - Resource management and security policies
@@ -278,17 +258,15 @@ persistentvolumeclaims: "5"   # Maximum PVCs
 
 ```bash
 # Show baseline
-kubectl get hpa -n wordpress-demo
-kubectl get pods -n wordpress-demo
+./scripts/load-test-demo.sh status
 
-# Generate load
+# Generate load (2 busybox pods making continuous requests)
 ./scripts/load-test-demo.sh start
 
-# Watch scaling
+# Watch scaling in real-time
 kubectl get hpa -n wordpress-demo -w
-kubectl top pods -n wordpress-demo
 
-# Stop load
+# Stop load test
 ./scripts/load-test-demo.sh stop
 ```
 
@@ -315,10 +293,11 @@ kubectl top pods -n wordpress-demo
 **Helm deployment**:
 
 ```bash
-helm upgrade --install wordpress-demo helm/wordpress --values values-eks-demo.yaml
+helm upgrade --install wordpress helm/wordpress -f helm/wordpress/values-eks-demo.yaml
 ```
 
 **Equivalent plain manifests** would require:
+
 - 10+ separate YAML files
 - Manual value substitution
 - Individual kubectl apply commands
@@ -378,11 +357,11 @@ kubectl cluster-info
 
 # Application status
 kubectl get all -n wordpress-demo
-kubectl describe hpa wordpress-demo-hpa -n wordpress-demo
+kubectl describe hpa wordpress -n wordpress-demo
 
 # Logs and debugging
-kubectl logs -f deployment/wordpress-demo -n wordpress-demo
-kubectl logs -f deployment/wordpress-demo-mysql -n wordpress-demo
+kubectl logs -f deployment/wordpress -n wordpress-demo
+kubectl logs -f deployment/wordpress-mysql -n wordpress-demo
 
 # Resource usage
 kubectl top nodes
@@ -409,7 +388,7 @@ kubectl top pods -n wordpress-demo
 
 ```bash
 # Remove WordPress
-helm uninstall wordpress-demo -n wordpress-demo
+helm uninstall wordpress -n wordpress-demo
 kubectl delete namespace wordpress-demo
 
 # Destroy infrastructure
