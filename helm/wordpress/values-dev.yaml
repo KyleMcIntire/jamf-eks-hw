@@ -92,9 +92,9 @@ replicaCount: 1
 autoscaling:
   enabled: true
   minReplicas: 2
-  maxReplicas: 8
-  targetCPUUtilizationPercentage: 50
-  targetMemoryUtilizationPercentage: 70
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
 
 # Reduce resource quotas for kind
 resourceQuota:
