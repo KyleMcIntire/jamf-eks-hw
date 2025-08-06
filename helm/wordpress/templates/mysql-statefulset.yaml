@@ -1,11 +1,12 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ include "wordpress.fullname" . }}-mysql
   namespace: {{ .Values.namespace }}
   labels:
     {{- include "wordpress.mysql.labels" . | nindent 4 }}
 spec:
+  serviceName: {{ include "wordpress.fullname" . }}-mysql
   replicas: 1
   selector:
     matchLabels:
@@ -62,7 +63,12 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 2
           timeoutSeconds: 1
-      volumes:
-      - name: mysql-persistent-storage
-        persistentVolumeClaim:
-          claimName: {{ include "wordpress.fullname" . }}-mysql-pvc
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-persistent-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.mysql.persistence.storageClass | default "" }}
+      resources:
+        requests:
+          storage: {{ .Values.mysql.persistence.size | default "8Gi" }}
