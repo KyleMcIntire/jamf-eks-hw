@@ -291,6 +291,8 @@ My experience has been with AWS EKS and Helm in the past. These are the tools / 
        pod-security.kubernetes.io/enforce: restricted
        pod-security.kubernetes.io/audit: restricted
        pod-security.kubernetes.io/warn: restricted
+
+   # The restricted policy is the most secure level, requiring things like non-root users, read-only root filesystems, and dropping all capabilities
    ```
 
 4. **Image Security**:

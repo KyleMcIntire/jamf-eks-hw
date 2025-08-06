@@ -422,7 +422,6 @@ helm upgrade --install wordpress helm/wordpress -f helm/wordpress/values-eks-dem
 
 **Equivalent plain manifests** would require:
 
-- 10+ separate YAML files
 - Manual value substitution
 - Individual kubectl apply commands
 - Manual rollback procedures
