@@ -96,12 +96,15 @@ module "eks" {
 
   # Add-ons
   cluster_addons = {
+    # CoreDNS - Provides DNS resolution for services and pods within the cluster
     coredns = {
       most_recent = true
     }
+    # Kube-proxy - Handles network routing and load balancing for Kubernetes services
     kube-proxy = {
       most_recent = true
     }
+    # VPC CNI - AWS networking plugin that assigns VPC IP addresses to pods
     vpc-cni = {
       most_recent    = true
       before_compute = true
@@ -113,8 +116,9 @@ module "eks" {
         }
       })
     }
+    # EBS CSI Driver - Enables persistent storage using AWS EBS volumes
     aws-ebs-csi-driver = {
-      most_recent = true
+      most_recent              = true
       service_account_role_arn = module.ebs_csi_irsa_role.iam_role_arn
     }
   }
