@@ -18,6 +18,7 @@ This project demonstrates a WordPress deployment on Amazon EKS or local cluster 
     - [3. Test Autoscaling](#3-test-autoscaling)
   - [Accessing WordPress](#accessing-wordpress)
     - [AWS EKS (AWS Load Balancer Controller)](#aws-eks-aws-load-balancer-controller)
+    - [Local Access via Port Forwarding](#local-access-via-port-forwarding)
     - [Port Forwarding (Any Environment)](#port-forwarding-any-environment)
   - [Project Structure](#project-structure)
   - [Architecture Overview](#architecture-overview)
@@ -127,6 +128,15 @@ kubectl get svc wordpress -n wordpress-demo
 
 # Wait for EXTERNAL-IP to be assigned (may take 2-3 minutes)
 # Access WordPress at: http://<EXTERNAL-IP>
+```
+
+### Local Access via Port Forwarding
+
+```bash
+# Forward local port to WordPress service
+kubectl port-forward svc/wordpress 8080:80 -n wordpress-demo
+
+# Access WordPress at: http://localhost:8080
 ```
 
 **Benefits with AWS Load Balancer Controller:**
