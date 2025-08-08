@@ -213,20 +213,52 @@ kubectl port-forward svc/wordpress 8080:80 -n wordpress-demo
 ## Project Structure
 
 ```text
-├── terraform/                        # Infrastructure as Code
-│   ├── environments/                 # Environment-specific configurations
-│   └── modules/                      # Reusable Terraform modules
-├── helm/                             # Helm charts and configurations
-│   ├── aws-load-balancer-controller/ # AWS Load Balancer Controller
-│   ├── metrics-server/               # Kubernetes metrics server
-│   └── wordpress/                    # WordPress Helm chart
-│       └── templates/                # Kubernetes manifests
-├── k8s/                              # Kubernetes manifests
-│   ├── nginx-ingress.yaml           # NGINX Ingress Controller for KIND
-│   └── api-service.yaml             # Example additional service
-├── scripts/                          # Automation and testing scripts
-├── kind-config.yaml                  # KIND cluster configuration
-└── docs/                             # Project documentation
+.
+├── docs/                                    # Documentation and analysis
+│   ├── Cost Estimate.md                     # AWS cost breakdown and optimization analysis
+│   └── Kubernetes - Homework-2.md           # Technical assignment requirements
+├── helm/                                    # Helm charts for Kubernetes deployments
+│   ├── aws-load-balancer-controller/        # AWS ALB Controller configuration
+│   │   ├── README.md                        # Installation and configuration guide
+│   │   └── values.yaml                      # Helm values for ALB controller
+│   ├── metrics-server/                      # Kubernetes metrics server for HPA
+│   │   ├── README.md                        # Setup instructions for metrics collection
+│   │   ├── values-dev.yaml                  # Development environment configuration
+│   │   └── values-prod.yaml                 # Production environment configuration
+│   └── wordpress/                           # WordPress application Helm chart
+│       ├── Chart.yaml                       # Chart metadata and dependencies
+│       ├── README.md                        # WordPress deployment guide
+│       ├── templates/                       # Kubernetes manifest templates
+│       │   ├── _helpers.tpl                 # Helm template helpers and functions
+│       │   ├── hpa.yaml                     # Horizontal Pod Autoscaler configuration
+│       │   ├── mysql-service.yaml           # MySQL database service definition
+│       │   ├── mysql-statefulset.yaml       # MySQL StatefulSet with persistent storage
+│       │   ├── namespace.yaml               # Kubernetes namespace with resource quotas
+│       │   ├── secrets.yaml                 # Database credentials and WordPress secrets
+│       │   ├── wordpress-deployment.yaml    # WordPress application deployment
+│       │   ├── wordpress-ingress.yaml       # Ingress routing configuration
+│       │   ├── wordpress-pvc.yaml           # Persistent volume claim for WordPress files
+│       │   └── wordpress-service.yaml       # WordPress service definition
+│       ├── values-dev.yaml                  # Local KIND cluster configuration
+│       └── values-eks-demo.yaml             # AWS EKS production configuration
+├── k8s/                                     # Plain Kubernetes manifests
+│   ├── api-service.yaml                     # Example API service for ingress demo
+│   ├── kind-config.yaml                     # KIND cluster configuration with ingress
+│   └── nginx-ingress.yaml                   # NGINX ingress controller for local dev
+├── README.md                                # Main project documentation
+├── scripts/                                 # Automation and utility scripts
+│   ├── cost-monitor.sh                      # AWS cost monitoring and alerts
+│   ├── load-test-demo.sh                    # Load testing and HPA demonstration
+│   └── terraform-state-setup.sh             # Terraform remote state initialization
+└── terraform/                               # Infrastructure as Code
+    ├── environments/                        # Environment-specific configurations
+    │   ├── demo/                            # Demo environment for technical interview
+    │   │   ├── backend.tf                   # Remote state backend configuration
+    │   │   ├── main.tf                      # EKS cluster and VPC infrastructure
+    │   │   ├── outputs.tf                   # Terraform outputs (cluster info, etc.)
+    │   │   └── variables.tf                 # Input variables and configuration
+    │   └── staging/                         # Staging environment (placeholder)
+    └── modules/                             # Reusable Terraform modules (empty)
 ```
 
 ## Architecture Overview
