@@ -80,10 +80,22 @@ mysql:
       cpu: "200m"
       memory: "128Mi"
 
-# Use NodePort for easier local access
+# Use ClusterIP with ingress for local access
 service:
-  type: NodePort
+  type: ClusterIP
   port: 80
+
+# Ingress configuration for NGINX
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: wordpress.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
 
 # Single replica for testing
 replicaCount: 1

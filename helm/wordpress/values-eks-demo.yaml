@@ -76,12 +76,24 @@ mysql:
       cpu: "50m"
       memory: "128Mi"
 
-# Service configuration
+# Service configuration - ClusterIP for ingress
 service:
-  type: LoadBalancer
+  type: ClusterIP
   port: 80
+
+# Ingress configuration for AWS ALB
+ingress:
+  enabled: true
+  className: alb
   annotations:
-    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+  hosts:
+    - host: wordpress-demo.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
 
 # Initial replicas for demo (HPA will scale 2-10 based on load)
 replicaCount: 2
