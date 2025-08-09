@@ -15,12 +15,13 @@ This project demonstrates a WordPress deployment on Amazon EKS or local cluster 
     - [2. Deploy WordPress with Helm](#2-deploy-wordpress-with-helm)
       - [For AWS EKS (Production)](#for-aws-eks-production)
       - [For Local Kind Cluster (Development)](#for-local-kind-cluster-development)
-    - [3. Test Autoscaling](#3-test-autoscaling)
   - [Accessing WordPress](#accessing-wordpress)
     - [AWS EKS (Application Load Balancer)](#aws-eks-application-load-balancer)
     - [Local KIND Cluster (NGINX Ingress)](#local-kind-cluster-nginx-ingress)
     - [Ingress Architecture Benefits](#ingress-architecture-benefits)
-    - [Adding Additional Services](#adding-additional-services)
+    - [Adding Additional Services (Single ALB Strategy)](#adding-additional-services-single-alb-strategy)
+      - [Option 1: Host-Based Routing (Recommended)](#option-1-host-based-routing-recommended)
+      - [Option 2: Path-Based Routing](#option-2-path-based-routing)
     - [Port Forwarding (Fallback Method)](#port-forwarding-fallback-method)
   - [Project Structure](#project-structure)
   - [Architecture Overview](#architecture-overview)
@@ -49,6 +50,9 @@ This project demonstrates a WordPress deployment on Amazon EKS or local cluster 
     - [Common Commands](#common-commands)
     - [Common Issues](#common-issues)
   - [Cost Optimization](#cost-optimization)
+    - [Critical: Single ALB Strategy](#critical-single-alb-strategy)
+    - [Other Optimizations](#other-optimizations)
+    - [Multi-Service Architecture Cost Comparison](#multi-service-architecture-cost-comparison)
   - [Cleanup](#cleanup)
   - [Resources Used](#resources-used)
   - [Author](#author)
@@ -80,13 +84,24 @@ kubectl get nodes
 #### For AWS EKS (Production)
 
 1. **Install Metrics Server** (required for HPA)
+
    - See [helm/metrics-server/README.md](helm/metrics-server/README.md) for detailed installation instructions
    - Use production configuration: `helm/metrics-server/values-prod.yaml`
 
-2. **Install AWS Load Balancer Controller** (optional, for LoadBalancer services)
+2. **Install AWS Load Balancer Controller** (recommended for production)
+
    - See [helm/aws-load-balancer-controller/README.md](helm/aws-load-balancer-controller/README.md) for setup instructions
+   - Provides native ALB integration with direct pod targeting
+
+   **Alternative**: For advanced ingress features, you can use NGINX instead:
+
+   ```bash
+   kubectl apply -f k8s/nginx-ingress-eks.yaml
+   kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
+   ```
 
 3. **Deploy WordPress**
+
    - See [helm/wordpress/README.md](helm/wordpress/README.md) for complete deployment guide
    - Use EKS demo configuration: `helm/wordpress/values-eks-demo.yaml`
 
@@ -94,17 +109,17 @@ kubectl get nodes
 
 1. **Create KIND cluster with ingress support**
 
-   ```bash
-   # Create cluster with proper port mapping
-   kind create cluster --name jamf-hw --config kind-config.yaml
-   ```
+    ```bash
+    # Create cluster with proper port mapping
+    kind create cluster --name jamf-hw --config kind-config.yaml
+    ```
 
 2. **Install NGINX Ingress Controller**
 
-   ```bash
-   kubectl apply -f k8s/nginx-ingress.yaml
-   kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
-   ```
+    ```bash
+    kubectl apply -f k8s/nginx-ingress.yaml
+    kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
+    ```
 
 3. **Install Metrics Server** (required for HPA)
    - See [helm/metrics-server/README.md](helm/metrics-server/README.md) for detailed installation instructions
@@ -116,22 +131,9 @@ kubectl get nodes
 
 5. **Add local DNS entries**
 
-   ```bash
-   echo "127.0.0.1 wordpress.local" | sudo tee -a /etc/hosts
-   ```
-
-### 3. Test Autoscaling
-
-```bash
-# Start load test
-./scripts/load-test-demo.sh start
-
-# Monitor scaling
-./scripts/load-test-demo.sh status
-
-# Stop load test
-./scripts/load-test-demo.sh stop
-```
+    ```bash
+    echo "127.0.0.1 wordpress.local" | sudo tee -a /etc/hosts
+    ```
 
 ## Accessing WordPress
 
@@ -139,7 +141,7 @@ The deployment uses **ingress-based routing** with a shared load balancer for co
 
 ### AWS EKS (Application Load Balancer)
 
-The chart uses ingress resources with the AWS Load Balancer Controller to provision a single Application Load Balancer:
+The WordPress chart is configured with `className: alb` in `values-eks-demo.yaml` to use the AWS Load Balancer Controller for native ALB integration:
 
 ```bash
 # Check if AWS Load Balancer Controller is installed
@@ -151,12 +153,26 @@ kubectl get ingress wordpress -n wordpress-demo
 # Access WordPress at the ALB URL shown in ADDRESS column
 ```
 
+**Configuration**: Uses `helm/wordpress/values-eks-demo.yaml` with ALB-specific settings:
+
+```yaml
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /wp-admin/install.php
+```
+
+**Benefits**: Direct pod targeting, native AWS integration, better performance, and access to AWS-native features like WAF and Shield.
+
 ### Local KIND Cluster (NGINX Ingress)
 
-For local development, the chart uses NGINX Ingress Controller with host-based routing:
+For local development, the WordPress chart is configured with `className: nginx` in `values-dev.yaml` using the NGINX Ingress Controller from `k8s/nginx-ingress.yaml`:
 
 ```bash
-# Deploy NGINX Ingress Controller
+# Deploy NGINX Ingress Controller (from repository)
 kubectl apply -f k8s/nginx-ingress.yaml
 
 # Wait for controller to be ready
@@ -168,28 +184,53 @@ echo "127.0.0.1 wordpress.local" | sudo tee -a /etc/hosts
 # Access WordPress at: http://wordpress.local
 ```
 
-### Ingress Architecture Benefits
-
-- **Single Load Balancer**: One ALB/NGINX controller handles multiple services
-- **Cost Effective**: ~$16/month savings per additional service (no per-service LoadBalancer)
-- **Host-Based Routing**: Clean separation with dedicated domains per service
-- **Scalable**: Easy to add more services with additional ingress rules
-
-### Adding Additional Services
-
-To add more services to the shared ingress:
+**Configuration**: Uses `helm/wordpress/values-dev.yaml` with NGINX-specific settings:
 
 ```yaml
-# Example: API service with its own domain
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: wordpress.local
+      paths:
+        - path: /
+          pathType: Prefix
+```
+
+### Ingress Architecture Benefits
+
+- **Single ALB Strategy**: One ALB handles ALL services via ingress rules (cost-effective)
+- **Cost Savings**: ~$16/month per additional service (vs separate LoadBalancers)
+- **Multiple Routing Options**: 
+  - **Host-based**: `wordpress.domain.com`, `api.domain.com` 
+  - **Path-based**: `domain.com/wordpress`, `domain.com/api`
+- **Performance**: Direct pod targeting with ALB, no extra hops
+- **AWS Native**: Leverage WAF, Shield, Certificate Manager integration
+- **Scalable**: Add services by creating ingress rules, not new ALBs
+
+### Adding Additional Services (Single ALB Strategy)
+
+**Critical for Cost Efficiency**: Use ONE ALB for ALL services by creating additional ingress rules, not new ALBs.
+
+The repository includes an example API service in `k8s/api-service.yaml`:
+
+#### Option 1: Host-Based Routing (Recommended)
+
+```yaml
+# API service with subdomain - shares same ALB as WordPress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: api-ingress
   namespace: wordpress-demo
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: shared-alb  # KEY: Same group as WordPress
 spec:
-  ingressClassName: nginx  # or 'alb' for AWS
+  ingressClassName: alb
   rules:
-  - host: api.local  # or api.yourdomain.com for AWS
+  - host: api.yourdomain.com  # Different subdomain, same ALB
     http:
       paths:
       - path: /
@@ -200,6 +241,50 @@ spec:
             port:
               number: 80
 ```
+
+#### Option 2: Path-Based Routing
+
+```yaml
+# API service with path - shares same ALB and domain
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress
+  namespace: wordpress-demo
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: shared-alb  # KEY: Same group as WordPress
+spec:
+  ingressClassName: alb
+  rules:
+  - host: yourdomain.com  # Same domain as WordPress
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-service
+            port:
+              number: 80
+      - path: /  # WordPress gets remaining traffic
+        pathType: Prefix
+        backend:
+          service:
+            name: wordpress
+            port:
+              number: 80
+```
+
+**Deploy the example**:
+
+```bash
+kubectl apply -f k8s/api-service.yaml
+# No new ALB created - uses existing one!
+```
+
+**Cost Impact**: Adding 10 services = $0 additional ALB costs (vs $160/month with separate ALBs)
 
 ### Port Forwarding (Fallback Method)
 
@@ -242,9 +327,10 @@ kubectl port-forward svc/wordpress 8080:80 -n wordpress-demo
 │       ├── values-dev.yaml                  # Local KIND cluster configuration
 │       └── values-eks-demo.yaml             # AWS EKS production configuration
 ├── k8s/                                     # Plain Kubernetes manifests
-│   ├── api-service.yaml                     # Example API service for ingress demo
-│   ├── kind-config.yaml                     # KIND cluster configuration with ingress
-│   └── nginx-ingress.yaml                   # NGINX ingress controller for local dev
+│   ├── api-service.yaml                     # Example API service for multi-service ingress demo
+│   ├── kind-config.yaml                     # KIND cluster configuration with ingress port mapping
+│   ├── nginx-ingress.yaml                   # NGINX ingress controller v1.8.1 for local KIND
+│   └── nginx-ingress-eks.yaml               # NGINX ingress controller v1.8.1 for EKS (alternative)
 ├── README.md                                # Main project documentation
 ├── scripts/                                 # Automation and utility scripts
 │   ├── cost-monitor.sh                      # AWS cost monitoring and alerts
@@ -391,7 +477,7 @@ graph TB
 - **EKS Cluster**: Kubernetes 1.31, 1-4 worker nodes (t3.large)
 - **WordPress**: 2-20 pods with HPA (CPU/Memory based scaling)
 - **MySQL**: Single pod with persistent storage (MariaDB 10.11)
-- **Ingress**: Single ALB/NGINX controller with host-based routing
+- **Ingress**: ALB controller (EKS) or NGINX controller (KIND) for host-based routing
 - **Storage**: EBS volumes via CSI driver (gp2, 5Gi each)
 - **Networking**: VPC (10.0.0.0/16) with public/private subnets, single NAT gateway
 - **Security**: Pod Security Standards (baseline), RBAC, secrets management
@@ -570,13 +656,37 @@ kubectl top pods -n wordpress-demo
 
 ## Cost Optimization
 
+### Critical: Single ALB Strategy
+
+- **One ALB for ALL services**: Use `alb.ingress.kubernetes.io/group.name: shared-alb`
+- **Cost impact**: Adding 10 services = $0 ALB costs (vs $160/month with separate ALBs)
+- **Routing options**: Host-based (`api.domain.com`) or path-based (`domain.com/api`)
+
+### Other Optimizations
+
 - **Single NAT Gateway**: ~$45/month savings vs multi-AZ
-- **Shared Ingress Controller**: ~$16/month savings per additional service
+- **Shared ALB**: ~$16/month savings per additional service
 - **t3.large instances**: Cost-effective for demo workloads
 - **gp2 storage**: Standard EBS volumes
 - **Resource limits**: Prevent resource waste
 
 **Estimated monthly cost**: ~$129-137 for demo cluster (see [docs/Cost Estimate.md](docs/Cost%20Estimate.md))
+
+### Multi-Service Architecture Cost Comparison
+
+```text
+❌ Bad: Separate ALBs per service
+- WordPress ALB: $16/month
+- API ALB: $16/month
+- Auth ALB: $16/month
+- Total: $48/month + compute
+
+✅ Good: Single shared ALB
+- Shared ALB: $16/month
+- All services: $0 additional
+- Total: $16/month + compute
+- Savings: $32/month for 3 services
+```
 
 ## Cleanup
 

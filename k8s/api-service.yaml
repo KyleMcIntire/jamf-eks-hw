@@ -18,6 +18,13 @@ spec:
         image: nginx:alpine
         ports:
         - containerPort: 80
+        resources:
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
         volumeMounts:
         - name: config
           mountPath: /usr/share/nginx/html/index.html
@@ -63,11 +70,16 @@ metadata:
   name: api-ingress
   namespace: wordpress-demo
   annotations:
+    # For EKS with ALB (cost-effective shared ALB)
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: shared-alb  # KEY: Same ALB as WordPress
+    # For local KIND with NGINX
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
-  ingressClassName: nginx
+  ingressClassName: alb  # Use 'nginx' for local KIND
   rules:
-  - host: api.local
+  - host: api.yourdomain.com  # Use 'api.local' for KIND
     http:
       paths:
       - path: /

@@ -1,4 +1,5 @@
 # EKS Demo values - minimal resources for small cluster
+# Uses AWS Load Balancer Controller for native ALB integration
 
 # Namespace configuration
 namespace: wordpress-demo
@@ -81,13 +82,15 @@ service:
   type: ClusterIP
   port: 80
 
-# Ingress configuration for AWS ALB
+# Ingress configuration for AWS ALB (shared ALB for cost efficiency)
 ingress:
   enabled: true
   className: alb
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /wp-admin/install.php
+    alb.ingress.kubernetes.io/group.name: shared-alb  # KEY: Enables ALB sharing
   hosts:
     - host: wordpress-demo.yourdomain.com
       paths:
@@ -141,7 +144,14 @@ additionalLabels:
   version: "1.0"
 # Load Testing Notes:
 # - Use scripts/load-test-demo.sh to demonstrate HPA scaling
-# - Resource quotas allow scaling up to 10 WordPress pods
-# - HPA targets: CPU 50%, Memory 60%
+# - Resource quotas allow scaling up to 20 WordPress pods
+# - HPA targets: CPU 80%, Memory 80%
 # - Expected baseline: 2 pods (due to memory pressure)
-# - Expected scaling: 2 → 10 pods under load
+# - Expected scaling: 2 → 20 pods under load
+
+# Ingress Notes:
+# - Uses AWS Load Balancer Controller for native ALB integration
+# - CRITICAL: Uses alb.ingress.kubernetes.io/group.name for ALB sharing
+# - Single ALB handles multiple services (cost-effective)
+# - Direct pod targeting for better performance
+# - Leverages AWS-native features (WAF, Shield, ACM integration)
