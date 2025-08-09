@@ -1,6 +1,7 @@
 # AWS EKS WordPress Deployment - Cost Estimate
 
 ## Overview
+
 This document provides cost estimates for the WordPress deployment on AWS EKS in the demo environment (us-east-2 region).
 
 ## Infrastructure Configuration
@@ -44,6 +45,7 @@ This document provides cost estimates for the WordPress deployment on AWS EKS in
 - **MariaDB over MySQL**: Lighter database footprint
 
 ### Additional Cost Savings Options
+
 - **t3.micro**: Could reduce EC2 costs by ~50% but may impact WordPress performance
 - **Spot Instances**: Could reduce EC2 costs by 60-90% but adds complexity
 - **Reserved Instances**: 1-year commitment could save ~30% on EC2 costs

@@ -15,11 +15,14 @@ This project demonstrates a WordPress deployment on Amazon EKS or local cluster 
     - [2. Deploy WordPress with Helm](#2-deploy-wordpress-with-helm)
       - [For AWS EKS (Production)](#for-aws-eks-production)
       - [For Local Kind Cluster (Development)](#for-local-kind-cluster-development)
-    - [3. Test Autoscaling](#3-test-autoscaling)
   - [Accessing WordPress](#accessing-wordpress)
-    - [AWS EKS (AWS Load Balancer Controller)](#aws-eks-aws-load-balancer-controller)
-    - [Local Access via Port Forwarding](#local-access-via-port-forwarding)
-    - [Port Forwarding (Any Environment)](#port-forwarding-any-environment)
+    - [AWS EKS (Application Load Balancer)](#aws-eks-application-load-balancer)
+    - [Local KIND Cluster (NGINX Ingress)](#local-kind-cluster-nginx-ingress)
+    - [Ingress Architecture Benefits](#ingress-architecture-benefits)
+    - [Adding Additional Services (Single ALB Strategy)](#adding-additional-services-single-alb-strategy)
+      - [Option 1: Host-Based Routing (Recommended)](#option-1-host-based-routing-recommended)
+      - [Option 2: Path-Based Routing](#option-2-path-based-routing)
+    - [Port Forwarding (Fallback Method)](#port-forwarding-fallback-method)
   - [Project Structure](#project-structure)
   - [Architecture Overview](#architecture-overview)
     - [Key Components](#key-components)
@@ -47,6 +50,9 @@ This project demonstrates a WordPress deployment on Amazon EKS or local cluster 
     - [Common Commands](#common-commands)
     - [Common Issues](#common-issues)
   - [Cost Optimization](#cost-optimization)
+    - [Critical: Single ALB Strategy](#critical-single-alb-strategy)
+    - [Other Optimizations](#other-optimizations)
+    - [Multi-Service Architecture Cost Comparison](#multi-service-architecture-cost-comparison)
   - [Cleanup](#cleanup)
   - [Resources Used](#resources-used)
   - [Author](#author)
@@ -78,92 +84,191 @@ kubectl get nodes
 #### For AWS EKS (Production)
 
 1. **Install Metrics Server** (required for HPA)
+
    - See [helm/metrics-server/README.md](helm/metrics-server/README.md) for detailed installation instructions
    - Use production configuration: `helm/metrics-server/values-prod.yaml`
 
-2. **Install AWS Load Balancer Controller** (optional, for LoadBalancer services)
+2. **Install AWS Load Balancer Controller** (recommended for production)
+
    - See [helm/aws-load-balancer-controller/README.md](helm/aws-load-balancer-controller/README.md) for setup instructions
+   - Provides native ALB integration with direct pod targeting
+
+   **Alternative**: For advanced ingress features, you can use NGINX instead:
+
+   ```bash
+   kubectl apply -f k8s/nginx-ingress-eks.yaml
+   kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
+   ```
 
 3. **Deploy WordPress**
+
    - See [helm/wordpress/README.md](helm/wordpress/README.md) for complete deployment guide
    - Use EKS demo configuration: `helm/wordpress/values-eks-demo.yaml`
 
 #### For Local Kind Cluster (Development)
 
-1. **Install Metrics Server** (required for HPA)
+1. **Create KIND cluster with ingress support**
+
+    ```bash
+    # Create cluster with proper port mapping
+    kind create cluster --name jamf-hw --config kind-config.yaml
+    ```
+
+2. **Install NGINX Ingress Controller**
+
+    ```bash
+    kubectl apply -f k8s/nginx-ingress.yaml
+    kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
+    ```
+
+3. **Install Metrics Server** (required for HPA)
    - See [helm/metrics-server/README.md](helm/metrics-server/README.md) for detailed installation instructions
    - Use development configuration: `helm/metrics-server/values-dev.yaml`
 
-2. **Deploy WordPress**
+4. **Deploy WordPress**
    - See [helm/wordpress/README.md](helm/wordpress/README.md) for complete deployment guide
    - Use dev configuration: `helm/wordpress/values-dev.yaml`
 
-### 3. Test Autoscaling
+5. **Add local DNS entries**
 
-```bash
-# Start load test
-./scripts/load-test-demo.sh start
-
-# Monitor scaling
-./scripts/load-test-demo.sh status
-
-# Stop load test
-./scripts/load-test-demo.sh stop
-```
+    ```bash
+    echo "127.0.0.1 wordpress.local" | sudo tee -a /etc/hosts
+    ```
 
 ## Accessing WordPress
 
-Once deployed, you can access your WordPress site using one of the following methods:
+The deployment uses **ingress-based routing** with a shared load balancer for cost efficiency and better resource utilization.
 
-### AWS EKS (AWS Load Balancer Controller)
+### AWS EKS (Application Load Balancer)
 
-The chart uses LoadBalancer services which work with the AWS Load Balancer Controller to provision Application Load Balancers:
+The WordPress chart is configured with `className: alb` in `values-eks-demo.yaml` to use the AWS Load Balancer Controller for native ALB integration:
 
 ```bash
 # Check if AWS Load Balancer Controller is installed
 kubectl get pods -n kube-system | grep aws-load-balancer-controller
 
-# Get the external load balancer URL (provisioned by AWS Load Balancer Controller)
-kubectl get svc wordpress -n wordpress-demo
+# Get the ingress URL (provisioned by AWS Load Balancer Controller)
+kubectl get ingress wordpress -n wordpress-demo
 
-# Wait for EXTERNAL-IP to be assigned (may take 2-3 minutes)
-# Access WordPress at: http://<EXTERNAL-IP>
+# Access WordPress at the ALB URL shown in ADDRESS column
 ```
 
-### Local Access via Port Forwarding
-
-```bash
-# Forward local port to WordPress service
-kubectl port-forward svc/wordpress 8080:80 -n wordpress-demo
-
-# Access WordPress at: http://localhost:8080
-```
-
-**Benefits with AWS Load Balancer Controller:**
-
-- Provisions Application Load Balancer (ALB) instead of Classic Load Balancer
-- Better performance and cost optimization
-- Advanced routing and SSL/TLS support capabilities
-
-**Optional: Create Custom Ingress**
-
-For advanced routing, you can create an Ingress resource:
+**Configuration**: Uses `helm/wordpress/values-eks-demo.yaml` with ALB-specific settings:
 
 ```yaml
-# Save as wordpress-ingress.yaml
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /wp-admin/install.php
+```
+
+**Benefits**: Direct pod targeting, native AWS integration, better performance, and access to AWS-native features like WAF and Shield.
+
+### Local KIND Cluster (NGINX Ingress)
+
+For local development, the WordPress chart is configured with `className: nginx` in `values-dev.yaml` using the NGINX Ingress Controller from `k8s/nginx-ingress.yaml`:
+
+```bash
+# Deploy NGINX Ingress Controller (from repository)
+kubectl apply -f k8s/nginx-ingress.yaml
+
+# Wait for controller to be ready
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
+
+# Add local DNS entries
+echo "127.0.0.1 wordpress.local" | sudo tee -a /etc/hosts
+
+# Access WordPress at: http://wordpress.local
+```
+
+**Configuration**: Uses `helm/wordpress/values-dev.yaml` with NGINX-specific settings:
+
+```yaml
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: wordpress.local
+      paths:
+        - path: /
+          pathType: Prefix
+```
+
+### Ingress Architecture Benefits
+
+- **Single ALB Strategy**: One ALB handles ALL services via ingress rules (cost-effective)
+- **Cost Savings**: ~$16/month per additional service (vs separate LoadBalancers)
+- **Multiple Routing Options**: 
+  - **Host-based**: `wordpress.domain.com`, `api.domain.com` 
+  - **Path-based**: `domain.com/wordpress`, `domain.com/api`
+- **Performance**: Direct pod targeting with ALB, no extra hops
+- **AWS Native**: Leverage WAF, Shield, Certificate Manager integration
+- **Scalable**: Add services by creating ingress rules, not new ALBs
+
+### Adding Additional Services (Single ALB Strategy)
+
+**Critical for Cost Efficiency**: Use ONE ALB for ALL services by creating additional ingress rules, not new ALBs.
+
+The repository includes an example API service in `k8s/api-service.yaml`:
+
+#### Option 1: Host-Based Routing (Recommended)
+
+```yaml
+# API service with subdomain - shares same ALB as WordPress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: wordpress-ingress
+  name: api-ingress
   namespace: wordpress-demo
   annotations:
-    kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: shared-alb  # KEY: Same group as WordPress
 spec:
+  ingressClassName: alb
   rules:
-  - http:
+  - host: api.yourdomain.com  # Different subdomain, same ALB
+    http:
       paths:
       - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-service
+            port:
+              number: 80
+```
+
+#### Option 2: Path-Based Routing
+
+```yaml
+# API service with path - shares same ALB and domain
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress
+  namespace: wordpress-demo
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: shared-alb  # KEY: Same group as WordPress
+spec:
+  ingressClassName: alb
+  rules:
+  - host: yourdomain.com  # Same domain as WordPress
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-service
+            port:
+              number: 80
+      - path: /  # WordPress gets remaining traffic
         pathType: Prefix
         backend:
           service:
@@ -172,15 +277,16 @@ spec:
               number: 80
 ```
 
-```bash
-# Apply the Ingress
-kubectl apply -f wordpress-ingress.yaml
+**Deploy the example**:
 
-# Get the ALB URL
-kubectl get ingress wordpress-ingress -n wordpress-demo
+```bash
+kubectl apply -f k8s/api-service.yaml
+# No new ALB created - uses existing one!
 ```
 
-### Port Forwarding (Any Environment)
+**Cost Impact**: Adding 10 services = $0 additional ALB costs (vs $160/month with separate ALBs)
+
+### Port Forwarding (Fallback Method)
 
 ```bash
 # Forward local port 8080 to WordPress service
@@ -191,17 +297,54 @@ kubectl port-forward svc/wordpress 8080:80 -n wordpress-demo
 
 ## Project Structure
 
-```
-├── terraform/                        # Infrastructure as Code
-│   ├── environments/                 # Environment-specific configurations
-│   └── modules/                      # Reusable Terraform modules
-├── helm/                             # Helm charts and configurations
-│   ├── aws-load-balancer-controller/ # AWS Load Balancer Controller
-│   ├── metrics-server/               # Kubernetes metrics server
-│   └── wordpress/                    # WordPress Helm chart
-│       └── templates/                # Kubernetes manifests
-├── scripts/                          # Automation and testing scripts
-└── docs/                             # Project documentation
+```text
+.
+├── docs/                                    # Documentation and analysis
+│   ├── Cost Estimate.md                     # AWS cost breakdown and optimization analysis
+│   └── Kubernetes - Homework-2.md           # Technical assignment requirements
+├── helm/                                    # Helm charts for Kubernetes deployments
+│   ├── aws-load-balancer-controller/        # AWS ALB Controller configuration
+│   │   ├── README.md                        # Installation and configuration guide
+│   │   └── values.yaml                      # Helm values for ALB controller
+│   ├── metrics-server/                      # Kubernetes metrics server for HPA
+│   │   ├── README.md                        # Setup instructions for metrics collection
+│   │   ├── values-dev.yaml                  # Development environment configuration
+│   │   └── values-prod.yaml                 # Production environment configuration
+│   └── wordpress/                           # WordPress application Helm chart
+│       ├── Chart.yaml                       # Chart metadata and dependencies
+│       ├── README.md                        # WordPress deployment guide
+│       ├── templates/                       # Kubernetes manifest templates
+│       │   ├── _helpers.tpl                 # Helm template helpers and functions
+│       │   ├── hpa.yaml                     # Horizontal Pod Autoscaler configuration
+│       │   ├── mysql-service.yaml           # MySQL database service definition
+│       │   ├── mysql-statefulset.yaml       # MySQL StatefulSet with persistent storage
+│       │   ├── namespace.yaml               # Kubernetes namespace with resource quotas
+│       │   ├── secrets.yaml                 # Database credentials and WordPress secrets
+│       │   ├── wordpress-deployment.yaml    # WordPress application deployment
+│       │   ├── wordpress-ingress.yaml       # Ingress routing configuration
+│       │   ├── wordpress-pvc.yaml           # Persistent volume claim for WordPress files
+│       │   └── wordpress-service.yaml       # WordPress service definition
+│       ├── values-dev.yaml                  # Local KIND cluster configuration
+│       └── values-eks-demo.yaml             # AWS EKS production configuration
+├── k8s/                                     # Plain Kubernetes manifests
+│   ├── api-service.yaml                     # Example API service for multi-service ingress demo
+│   ├── kind-config.yaml                     # KIND cluster configuration with ingress port mapping
+│   ├── nginx-ingress.yaml                   # NGINX ingress controller v1.8.1 for local KIND
+│   └── nginx-ingress-eks.yaml               # NGINX ingress controller v1.8.1 for EKS (alternative)
+├── README.md                                # Main project documentation
+├── scripts/                                 # Automation and utility scripts
+│   ├── cost-monitor.sh                      # AWS cost monitoring and alerts
+│   ├── load-test-demo.sh                    # Load testing and HPA demonstration
+│   └── terraform-state-setup.sh             # Terraform remote state initialization
+└── terraform/                               # Infrastructure as Code
+    ├── environments/                        # Environment-specific configurations
+    │   ├── demo/                            # Demo environment for technical interview
+    │   │   ├── backend.tf                   # Remote state backend configuration
+    │   │   ├── main.tf                      # EKS cluster and VPC infrastructure
+    │   │   ├── outputs.tf                   # Terraform outputs (cluster info, etc.)
+    │   │   └── variables.tf                 # Input variables and configuration
+    │   └── staging/                         # Staging environment (placeholder)
+    └── modules/                             # Reusable Terraform modules (empty)
 ```
 
 ## Architecture Overview
@@ -248,8 +391,9 @@ graph TB
         end
         
         subgraph "Services"
-            WPSVC[WordPress Service<br/>LoadBalancer]
+            WPSVC[WordPress Service<br/>ClusterIP]
             DBSVC[MySQL Service<br/>ClusterIP]
+            ING[Ingress<br/>ALB/NGINX Controller]
         end
         
         subgraph "Configuration"
@@ -272,7 +416,8 @@ graph TB
     %% Connections
     USER --> ALB
     ADMIN --> ALB
-    ALB --> WPSVC
+    ALB --> ING
+    ING --> WPSVC
     WPSVC --> WP1
     WPSVC --> WP2
     WPSVC --> WP3
@@ -332,6 +477,7 @@ graph TB
 - **EKS Cluster**: Kubernetes 1.31, 1-4 worker nodes (t3.large)
 - **WordPress**: 2-20 pods with HPA (CPU/Memory based scaling)
 - **MySQL**: Single pod with persistent storage (MariaDB 10.11)
+- **Ingress**: ALB controller (EKS) or NGINX controller (KIND) for host-based routing
 - **Storage**: EBS volumes via CSI driver (gp2, 5Gi each)
 - **Networking**: VPC (10.0.0.0/16) with public/private subnets, single NAT gateway
 - **Security**: Pod Security Standards (baseline), RBAC, secrets management
@@ -510,12 +656,37 @@ kubectl top pods -n wordpress-demo
 
 ## Cost Optimization
 
+### Critical: Single ALB Strategy
+
+- **One ALB for ALL services**: Use `alb.ingress.kubernetes.io/group.name: shared-alb`
+- **Cost impact**: Adding 10 services = $0 ALB costs (vs $160/month with separate ALBs)
+- **Routing options**: Host-based (`api.domain.com`) or path-based (`domain.com/api`)
+
+### Other Optimizations
+
 - **Single NAT Gateway**: ~$45/month savings vs multi-AZ
+- **Shared ALB**: ~$16/month savings per additional service
 - **t3.large instances**: Cost-effective for demo workloads
 - **gp2 storage**: Standard EBS volumes
 - **Resource limits**: Prevent resource waste
 
-**Estimated monthly cost**: ~$150-200 for demo cluster
+**Estimated monthly cost**: ~$129-137 for demo cluster (see [docs/Cost Estimate.md](docs/Cost%20Estimate.md))
+
+### Multi-Service Architecture Cost Comparison
+
+```text
+❌ Bad: Separate ALBs per service
+- WordPress ALB: $16/month
+- API ALB: $16/month
+- Auth ALB: $16/month
+- Total: $48/month + compute
+
+✅ Good: Single shared ALB
+- Shared ALB: $16/month
+- All services: $0 additional
+- Total: $16/month + compute
+- Savings: $32/month for 3 services
+```
 
 ## Cleanup
 
@@ -532,7 +703,7 @@ terraform destroy
 ## Resources Used
 
 - **AWS EKS Documentation**: [Best practices and configuration](https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html)
-- **Terraform AWS Modules**: [Standardized VPC](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest), [EKS module](https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest), and [AWS Load Balancer Controller]()
+- **Terraform AWS Modules**: [Standardized VPC](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest), [EKS module](https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest), and [AWS Load Balancer Controller](https://kubernetes-sigs.github.io/aws-load-balancer-controller/)
 - **Kubernetes Documentation**: [HPA](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) and [resource management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 - **Helm Documentation**: [Chart development](https://helm.sh/docs/chart_template_guide/) and [templating](https://helm.sh/docs/chart_template_guide/getting_started/)
 - **Community Examples**: [WordPress deployment patterns](https://kubernetes.io/docs/tutorials/stateful-application/mysql-wordpress-persistent-volume/)
